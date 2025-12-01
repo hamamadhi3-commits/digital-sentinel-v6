@@ -1,164 +1,164 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-🧠 Digital Sentinel – Eternal Hunter Final Edition
-By Mhamad Mahdy (Themoralhack)
-
-Autonomous, infinite-loop bug bounty hunter.
-Scans 500+ companies, detects real vulnerabilities, learns, reports to Discord, and never stops.
-"""
-
 import os
-import sys
-import time
 import json
-import random
+import time
 import requests
+import concurrent.futures
 from datetime import datetime
-from threading import Thread, Lock
 
-# =========================
-# 🔧 Configuration
-# =========================
-CONFIG = {
-    "threads": 6,
-    "scan_interval_minutes": 60,
-    "max_targets": 500,
-    "target_file": "data/targets/global_500_targets.txt",
-    "log_dir": "data/logs",
-    "report_dir": "data/reports",
-    "discord_webhook": os.getenv("DISCORD_WEBHOOK_URL"),
-    "self_evolution": True
+# === CONFIGURATION ===
+TARGETS_FILE = "data/targets.txt"      # لیستی کۆمپانیاکان (بیشتر لە 500 تاقی‌کراوە)
+REPORT_FILE = "data/reports/last_summary.json"
+DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
+
+SCAN_TIMEOUT = 10                      # خاڵی ماوەی هر شیکاربەندی
+MAX_WORKERS = 10                       # Parallel threads
+
+# === SEVERITY LEVEL MAP ===
+SEVERITY_LEVELS = {
+    "critical": 5,
+    "high": 4,
+    "medium": 3,
+    "low": 2,
+    "info": 1
 }
 
-# =========================
-# ⚙️ Setup Directories
-# =========================
-os.makedirs(CONFIG["log_dir"], exist_ok=True)
-os.makedirs(CONFIG["report_dir"], exist_ok=True)
-
-LOG_LOCK = Lock()
-
-def log(msg):
-    """Thread-safe logging."""
-    with LOG_LOCK:
-        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-        line = f"[{now}] {msg}"
-        print(line)
-        with open(f"{CONFIG['log_dir']}/sentinel.log", "a", encoding="utf-8") as f:
-            f.write(line + "\n")
-
-# =========================
-# 🚨 Discord Reporter
-# =========================
-def send_discord(message):
-    if not CONFIG["discord_webhook"]:
-        log("⚠️ No Discord webhook set, skipping.")
-        return
+# === BASIC CHECKS ===
+def basic_scan(target):
+    """Perform lightweight reconnaissance scan on target."""
     try:
-        requests.post(CONFIG["discord_webhook"], json={"content": message}, timeout=10)
-    except Exception as e:
-        log(f"❌ Failed to send Discord message: {e}")
+        start = time.time()
+        resp = requests.get(f"https://{target}", timeout=SCAN_TIMEOUT)
+        duration = round(time.time() - start, 2)
 
-# =========================
-# 🎯 Target Loader
-# =========================
-def load_targets():
-    if not os.path.exists(CONFIG["target_file"]):
-        log("❌ Target file missing!")
-        return []
-    with open(CONFIG["target_file"], "r", encoding="utf-8") as f:
-        targets = [t.strip() for t in f.readlines() if t.strip()]
-    if len(targets) > CONFIG["max_targets"]:
-        targets = random.sample(targets, CONFIG["max_targets"])
-    log(f"📡 Loaded {len(targets)} targets for scanning.")
-    return targets
-
-# =========================
-# 🧩 Vulnerability Scanner
-# =========================
-def scan_target(target):
-    """Simulate vulnerability detection (replace with real scan)."""
-    log(f"🔍 Scanning {target}")
-    time.sleep(random.uniform(0.8, 2.0))
-    chance = random.random()
-    if chance < 0.15:
-        vuln = {
+        data = {
             "target": target,
-            "type": random.choice(["SQLi", "RCE", "XSS", "IDOR", "CSRF", "Sensitive Data Exposure"]),
-            "severity": random.choice(["Critical", "High", "Medium"]),
-            "timestamp": datetime.utcnow().isoformat()
+            "status_code": resp.status_code,
+            "response_time": duration,
+            "server": resp.headers.get("Server", "Unknown"),
+            "content_length": len(resp.text),
         }
-        save_report(vuln)
-        send_discord(f"🚨 New Vulnerability Found on {target}\n"
-                     f"Type: {vuln['type']}\nSeverity: {vuln['severity']}")
-        return True
-    return False
 
-# =========================
-# 🧠 Report Writer
-# =========================
-def save_report(vuln):
-    """Save vulnerability details to JSON report."""
-    report_path = os.path.join(CONFIG["report_dir"], f"report_{int(time.time())}.json")
-    with open(report_path, "w", encoding="utf-8") as f:
-        json.dump(vuln, f, indent=2)
-    log(f"🧾 Saved report for {vuln['target']} → {report_path}")
+        # === anomaly detector (simplified logic) ===
+        vulns = []
+        if "x-powered-by" in resp.headers and "php" in resp.headers["x-powered-by"].lower():
+            vulns.append({
+                "type": "Information Disclosure",
+                "severity": "low",
+                "description": "Leaking backend technology in response headers."
+            })
 
-# =========================
-# 🔄 Self-Evolution Logic
-# =========================
-def evolve_system():
-    """Improve scanning logic dynamically."""
-    if CONFIG["self_evolution"]:
-        CONFIG["threads"] = min(CONFIG["threads"] + 1, 12)
-        CONFIG["scan_interval_minutes"] = max(15, CONFIG["scan_interval_minutes"] - 2)
-        log(f"🧬 System evolved → threads={CONFIG['threads']} interval={CONFIG['scan_interval_minutes']}min")
+        if "admin" in resp.text.lower() and "login" in resp.text.lower():
+            vulns.append({
+                "type": "Potential Admin Portal",
+                "severity": "medium",
+                "description": "Page contains admin/login keywords."
+            })
 
-# =========================
-# ♾️ Eternal Loop
-# =========================
-def eternal_loop():
-    cycle = 1
-    while True:
-        log(f"\n🚀 Starting Cycle #{cycle}")
-        targets = load_targets()
-        if not targets:
-            log("⚠️ No targets found, waiting 10 minutes...")
-            time.sleep(600)
-            continue
+        if "sql" in resp.text.lower() or "error in your sql syntax" in resp.text.lower():
+            vulns.append({
+                "type": "SQLi Indicator",
+                "severity": "high",
+                "description": "SQL syntax error detected in output."
+            })
 
-        threads = []
-        for t in targets:
-            if len(threads) >= CONFIG["threads"]:
-                for th in threads:
-                    th.join()
-                threads = []
-            th = Thread(target=scan_target, args=(t,))
-            th.start()
-            threads.append(th)
+        return {"target": target, "data": data, "vulns": vulns}
 
-        for th in threads:
-            th.join()
-
-        log(f"✅ Cycle #{cycle} finished.")
-        evolve_system()
-        cycle += 1
-        time.sleep(CONFIG["scan_interval_minutes"] * 60)
-
-# =========================
-# 🚀 Entry Point
-# =========================
-if __name__ == "__main__":
-    log("🧠 Digital Sentinel – Eternal Hunter Started.")
-    send_discord("🧠 Digital Sentinel – Eternal Hunter has started scanning 500 targets.")
-    try:
-        eternal_loop()
-    except KeyboardInterrupt:
-        log("🛑 Manual stop requested.")
-        send_discord("🛑 Sentinel manually stopped.")
-        sys.exit(0)
+    except requests.exceptions.Timeout:
+        return {"target": target, "error": "Timeout"}
     except Exception as e:
-        log(f"🔥 Fatal error: {e}")
-        send_discord(f"🔥 Fatal error in Sentinel:\n```\n{e}\n```")
-        sys.exit(1)
+        return {"target": target, "error": str(e)}
+
+
+# === PARALLEL EXECUTION ===
+def run_parallel_scans(targets):
+    results = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = {executor.submit(basic_scan, t): t for t in targets}
+        for future in concurrent.futures.as_completed(futures):
+            results.append(future.result())
+    return results
+
+
+# === REPORT GENERATOR ===
+def generate_summary(scan_results):
+    summary = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "targets_scanned": len(scan_results),
+        "vulns_found": 0,
+        "high_severity": 0,
+        "critical_severity": 0,
+        "details": []
+    }
+
+    for result in scan_results:
+        if "vulns" in result:
+            for v in result["vulns"]:
+                summary["vulns_found"] += 1
+                if v["severity"] == "high":
+                    summary["high_severity"] += 1
+                if v["severity"] == "critical":
+                    summary["critical_severity"] += 1
+
+                summary["details"].append({
+                    "target": result["target"],
+                    "type": v["type"],
+                    "severity": v["severity"],
+                    "description": v["description"]
+                })
+
+    os.makedirs(os.path.dirname(REPORT_FILE), exist_ok=True)
+    with open(REPORT_FILE, "w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=4)
+    print(f"✅ Report saved → {REPORT_FILE}")
+    return summary
+
+
+# === DISCORD NOTIFICATION ===
+def send_discord_report(summary):
+    if not DISCORD_WEBHOOK:
+        print("⚠️ Discord webhook not found.")
+        return
+
+    embed = {
+        "title": "📊 Digital Sentinel – Autonomous Recon Summary",
+        "color": 0x3498DB,
+        "timestamp": summary["timestamp"],
+        "fields": [
+            {"name": "🛰️ Targets Scanned", "value": str(summary["targets_scanned"]), "inline": True},
+            {"name": "🧠 Vulns Found", "value": str(summary["vulns_found"]), "inline": True},
+            {"name": "🔥 High Severity", "value": str(summary["high_severity"]), "inline": True},
+            {"name": "💀 Critical", "value": str(summary["critical_severity"]), "inline": True}
+        ],
+        "footer": {"text": "Digital Sentinel v11 • Eternal Hunter"}
+    }
+
+    payload = {"embeds": [embed]}
+
+    try:
+        r = requests.post(DISCORD_WEBHOOK, json=payload)
+        if r.status_code in [200, 204]:
+            print("📡 Report sent successfully to Discord.")
+        else:
+            print(f"⚠️ Discord error: {r.status_code} {r.text}")
+    except Exception as e:
+        print(f"💥 Discord send failed: {e}")
+
+
+# === MAIN EXECUTION ===
+if __name__ == "__main__":
+    print("🚀 Launching Sentinel Eternal Hunter v11")
+    if not os.path.exists(TARGETS_FILE):
+        print(f"❌ No targets file found → {TARGETS_FILE}")
+        exit(1)
+
+    with open(TARGETS_FILE, "r", encoding="utf-8") as f:
+        targets = [line.strip() for line in f if line.strip()]
+
+    print(f"🎯 Loaded {len(targets)} targets.")
+    print("🕵️ Starting autonomous scanning...")
+
+    results = run_parallel_scans(targets)
+    summary = generate_summary(results)
+    send_discord_report(summary)
+
+    print("✅ Hunter cycle completed.")
