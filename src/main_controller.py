@@ -1,53 +1,72 @@
+"""
+Digital Sentinel v6.0 – Main Controller
+Author: Mhamad Mahdy
+Purpose: Coordinates the autonomous scanning cycle
+"""
+
 import os
+import time
 import json
-import asyncio
+import concurrent.futures
 from datetime import datetime
 from src.recon_engine_parallel import run_recon_parallel
-from src.scope_fetcher import fetch_targets
-from src.ai_vuln_detector import analyze_vulnerabilities
-from src.auto_report_compose import compose_report
-from src.discord_notify import send_discord_notification
-from src.duplication_checker import remove_duplicates
+from src.auto_report_compose import generate_report
+from src.discord_notify import send_discord_alert
 
-CONFIG_PATH = "data/config.json"
+# Load configuration
+with open("data/targets/config.json", "r") as cfg:
+    CONFIG = json.load(cfg)
 
-async def main():
-    # === Load Configuration ===
-    with open(CONFIG_PATH, 'r') as f:
-        config = json.load(f)
+TARGET_FILE = CONFIG["target_file"]
+SCAN_INTERVAL = CONFIG["scan_interval_minutes"] * 60
+MAX_THREADS = CONFIG["threads"]
+LOG_DIR = CONFIG["log_directory"]
+REPORT_DIR = CONFIG["report_directory"]
 
-    threads = config.get("threads", 4)
-    target_file = config.get("target_file", "data/targets/global_500_targets.txt")
-    report_dir = config.get("report_directory", "data/reports")
-    log_dir = config.get("log_directory", "data/logs")
+def load_targets():
+    """Read target list from text file."""
+    try:
+        with open(TARGET_FILE, "r") as f:
+            targets = [line.strip() for line in f if line.strip()]
+        print(f"[INFO] Loaded {len(targets)} targets from {TARGET_FILE}")
+        return targets
+    except Exception as e:
+        print(f"[ERROR] Failed to load targets: {e}")
+        return []
 
-    os.makedirs(report_dir, exist_ok=True)
-    os.makedirs(log_dir, exist_ok=True)
+def main_cycle():
+    """Main scanning loop"""
+    print(f"\n🛰️  Digital Sentinel v6.0 — Autonomous Mode Started at {datetime.now()}")
+    targets = load_targets()
+    if not targets:
+        print("[WARN] No targets found. Exiting.")
+        return
 
-    # === Step 1: Fetch targets ===
-    print("[1] Fetching and cleaning target list...")
-    targets = fetch_targets(target_file)
-    targets = remove_duplicates(targets)
-    print(f"[+] Loaded {len(targets)} unique targets")
+    os.makedirs(LOG_DIR, exist_ok=True)
+    os.makedirs(REPORT_DIR, exist_ok=True)
 
-    # === Step 2: Recon Parallel Scan ===
-    print(f"[2] Launching Parallel Recon Engine with {threads} threads...")
-    recon_results = await run_recon_parallel(targets, threads)
+    # Parallel Execution
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
+        future_to_target = {executor.submit(run_recon_parallel, target): target for target in targets}
+        for future in concurrent.futures.as_completed(future_to_target):
+            target = future_to_target[future]
+            try:
+                result = future.result()
+                print(f"[DONE] {target}: {result}")
+            except Exception as e:
+                print(f"[FAIL] {target}: {e}")
 
-    # === Step 3: AI Vulnerability Analysis ===
-    print("[3] Analyzing potential vulnerabilities using AI module...")
-    ai_results = analyze_vulnerabilities(recon_results)
+    # Generate report
+    generate_report(REPORT_DIR)
 
-    # === Step 4: Auto Compose Reports ===
-    print("[4] Generating autonomous reports...")
-    report_path = compose_report(ai_results, report_dir)
-
-    # === Step 5: Discord Notification ===
-    print("[5] Sending completion notification...")
-    msg = f"✅ Sentinel Autonomous v6.1 completed.\n🕓 {datetime.now()}\n📄 Report: {report_path}"
-    send_discord_notification(msg)
-
-    print("[✔] All systems completed successfully.")
+    # Discord notification
+    try:
+        send_discord_alert(f"✅ Digital Sentinel completed a full recon cycle at {datetime.now()}")
+    except Exception as e:
+        print(f"[WARN] Discord notification failed: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    while True:
+        main_cycle()
+        print(f"🕒 Sleeping for {CONFIG['scan_interval_minutes']} minutes...\n")
+        time.sleep(SCAN_INTERVAL)
