@@ -1,28 +1,41 @@
-import json, os, datetime
+"""
+Digital Sentinel v6.0 – Auto Report Composer
+Purpose: Automatically generates a vulnerability summary report
+"""
 
-VALIDATED = "data/reports/validated_findings.json"
-REPORT_DIR = "data/reports/ready_to_send"
+import os
+import json
+from datetime import datetime
 
-def compose_reports():
-    print("🧩 Composing Bugcrowd style reports…")
-    os.makedirs(REPORT_DIR, exist_ok=True)
-    findings = json.load(open(VALIDATED))
+def generate_report(report_directory="data/reports"):
+    """Collects scan logs and composes a consolidated report"""
+    os.makedirs(report_directory, exist_ok=True)
+    log_dir = "data/logs"
+    report_path = os.path.join(report_directory, f"sentinel_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
 
-    for i, f in enumerate(findings):
-        report = {
-            "Submission title": f"[Auto] {f['type']} detected on {f['domain']}",
-            "Target": f["domain"],
-            "VRT Category": f["type"],
-            "URL/Location": f"https://{f['domain']}",
-            "Description": (
-                f"Automated recon identified {f['type']} pattern on {f['domain']}.\n"
-                "Evidence snippet:\n" + f['evidence']
-            ),
-            "Timestamp": datetime.datetime.utcnow().isoformat()
-        }
-        path = f"{REPORT_DIR}/report_{i}.json"
-        json.dump(report, open(path, "w"), indent=2)
-    print(f"✅ Composed {len(findings)} reports")
+    summary = {
+        "version": "6.0",
+        "generated_at": str(datetime.now()),
+        "targets": [],
+        "total_scanned": 0,
+        "vulnerabilities": []
+    }
 
-if __name__ == "__main__":
-    compose_reports()
+    # Iterate logs
+    for file in os.listdir(log_dir):
+        if file.endswith(".log"):
+            with open(os.path.join(log_dir, file), "r") as lf:
+                try:
+                    data = json.load(lf)
+                    summary["targets"].append(data["target"])
+                    summary["total_scanned"] += 1
+                    if "vulns" in data and data["vulns"]:
+                        summary["vulnerabilities"].extend(data["vulns"])
+                except Exception as e:
+                    print(f"[WARN] Failed to read {file}: {e}")
+
+    with open(report_path, "w") as rf:
+        json.dump(summary, rf, indent=2)
+
+    print(f"[REPORT] Generated summary report → {report_path}")
+    return report_path
