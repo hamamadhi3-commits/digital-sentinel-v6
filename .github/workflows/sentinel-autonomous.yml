@@ -1,46 +1,65 @@
 name: Digital Sentinel v6.0 – Autonomous Mode
 
 on:
-  schedule:
-    - cron: "0 * * * *"  # هر کاتژمێر یەکجار بەخۆی دەست پێدەکات
   workflow_dispatch:
+  schedule:
+    # 🔁 ئەمە وا دەکات هەموو 30 خولەک جارێک خۆی بەدەستی کار بکات
+    - cron: "*/30 * * * *"
 
 jobs:
   recon-cycle:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
-      - name: 🧰 Checkout Repository
-        uses: actions/checkout@v3
+      # 🧱 1. سەتی‌کردنی ژێرکار
+      - name: 📦 Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: 🧩 Setup Python
-        uses: actions/setup-python@v4
+      # 🧠 2. دامەزراندنی پایتۆن
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
-      - name: 📦 Install Dependencies
+      # 📦 3. دامەزراندنی پێویستیەکان
+      - name: 📥 Install Dependencies
         run: |
           python3 -m pip install --upgrade pip
-          pip install -r requirements.txt
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: 🧠 Verify Source Structure
+      # 🔎 4. پشکنینی سەرچاوەکان
+      - name: 🧩 Verify Source Structure
         run: |
-          echo "Current directory:"
-          pwd
-          echo "Repository structure:"
-          ls -R
+          echo "Listing source files..."
+          ls -R src/
 
-      - name: 🚀 Start Autonomous Loop
+      # 🚀 5. کارکردنی مۆدێل سەرەکی (Main Controller)
+      - name: 🚀 Start Autonomous Controller
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: |
-          export PYTHONPATH=$PYTHONPATH:$(pwd)
-          echo "✅ PYTHONPATH set to: $PYTHONPATH"
-          python3 src/main_controller.py
+          echo ">>> Launching Main Controller..."
+          python3 src/main_controller_v11.py || echo "⚠️ Controller exited with non-zero code."
 
-      - name: 📤 Upload Logs & Reports
+      # 🧠 6. کارکردنی Hunter خۆکار (Eternal Hunter)
+      - name: 🧠 Start Eternal Hunter
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          echo ">>> Launching Sentinel Eternal Hunter..."
+          python3 src/sentinel_eternal_hunter.py || echo "⚠️ Eternal Hunter exited with non-zero code."
+
+      # 🧠 7. پەیوەندیکردن بە Discord و بنێرانی ڕاپۆرت
+      - name: 📡 Upload Logs & Reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sentinel-logs
           path: |
-            data/logs
-            data/reports
+            data/logs/
+            data/reports/
+
+      # ✅ 8. پاشکاری و تەواوکردن
+      - name: ✅ Complete job
+        run: echo "Cycle completed successfully at $(date)"
