@@ -1,76 +1,51 @@
 name: Digital Sentinel v11 – Eternal Autonomous Mode
 
 on:
-  workflow_dispatch:         # بۆ دەستپێکردنی دەستی
-  schedule:
-    - cron: "*/30 * * * *"   # هەموو 30 خولەک جارێک خۆکار دەستپێدەکات
+  workflow_dispatch:
 
 jobs:
   recon-cycle:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 180   # ⏱️ Allow 3 hours for long AI cycles
 
     steps:
-      # 🧱 1. چێک‌ئاووتی ریپۆ
-      - name: 📦 Checkout Repository
-        uses: actions/checkout@v4
+    - name: 📦 Checkout Repository
+      uses: actions/checkout@v4
 
-      # 🧠 2. دامەزراندنی پایتۆن
-      - name: 🐍 Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+    - name: 🐍 Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
 
-      # 📦 3. دامەزراندنی پێویستیەکان
-      - name: 📥 Install Dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    - name: 🧰 Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt || true
 
-      # 🔎 4. پشکنینی ساختاری پڕۆژە
-      - name: 🧩 Verify Source Structure
-        run: |
-          echo "🔍 Checking project structure..."
-          ls -R src/
-          echo "✅ Structure verified successfully."
+    - name: 🚀 Launch Main Controller
+      run: |
+        echo ">>> Launching main controller..."
+        python3 src/main_controller_v11.py
 
-      # 🚀 5. دەستپێکردنی کۆنتڕۆڵەری سەرەکی
-      - name: 🚀 Launch Main Controller
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          echo ">>> Starting main_controller_v11.py"
-          python3 src/main_controller_v11.py || echo "⚠️ Main Controller exited with non-zero code."
+    - name: 🧠 Launch Sentinel Eternal Hunter
+      run: |
+        echo ">>> Starting sentinel_eternal_hunter.py"
+        python3 src/sentinel_eternal_hunter.py
 
-      # 🧠 6. دەستپێکردنی Eternal Hunter (نەوەستان)
-      - name: 🧠 Launch Sentinel Eternal Hunter
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          echo ">>> Starting sentinel_eternal_hunter.py"
-          python3 src/sentinel_eternal_hunter.py || echo "⚠️ Eternal Hunter exited with non-zero code."
+    - name: 🪶 Upload Logs & Reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: digital-sentinel-v11-reports
+        path: |
+          data/logs/
+          data/reports/
 
-      # 🔔 7. بنێرانی ڕاپۆرتەکان بۆ Discord
-      - name: 🔔 Send Discord Summary
-        if: always()
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        run: |
-          echo ">>> Sending mission summary to Discord..."
-          python3 src/discord_notify.py || echo "⚠️ Discord report failed."
+    - name: 🛰️ Send Discord Summary
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      run: |
+        echo ">>> Sending mission summary to Discord..."
+        python3 src/discord_notify.py "Cycle Complete" "Sentinel v11 autonomous mode finished successfully ✅"
 
-      # 📡 8. ئەپڵۆدکردنی ڕاپۆرتەکان و لاگەکان بۆ Artifact
-      - name: 📡 Upload Logs & Reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: sentinel-artifacts
-          path: |
-            data/logs/
-            data/reports/
-          retention-days: 5
-
-      # ✅ 9. نیشاندانی تەواوکردنی سیکڵ
-      - name: ✅ Complete Sentinel Cycle
-        run: |
-          echo "🎯 Sentinel cycle completed successfully at $(date)"
+    - name: ✅ Complete Sentinel Cycle
+      run: echo "🎯 Sentinel cycle completed successfully at $(date)"
