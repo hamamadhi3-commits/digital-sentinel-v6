@@ -1,30 +1,54 @@
-import os, json, requests
+"""
+Digital Sentinel v6.0 – Discord Notification Engine
+Purpose: Sends mission status updates to Discord Webhook channels
+"""
 
-WEBHOOK = os.getenv("DISCORD_WEBHOOK_URL", "https://discord.com/api/webhooks/EXAMPLE")
-REPORT_DIR = "data/reports/ready_to_send"
+import requests
+import json
+import os
 
-def send_discord():
-    print("📡 Sending findings to Discord…")
-    for f in os.listdir(REPORT_DIR):
-        report = json.load(open(f"{REPORT_DIR}/{f}"))
-        embed = {
-            "username": "Digital Sentinel v6.0",
-            "embeds": [{
-                "title": report["Submission title"],
-                "description": (
-                    f"**Target:** {report['Target']}\n"
-                    f"**Type:** {report['VRT Category']}\n"
-                    f"**URL:** {report['URL/Location']}\n"
-                    f"**Description:**\n{report['Description']}"
-                ),
-                "color": 15844367
-            }]
-        }
-        try:
-            requests.post(WEBHOOK, json=embed)
-        except Exception as e:
-            print("❌ Discord error:", e)
-    print("✅ Discord notifications sent")
+# Default webhook path (configure it in .env or config.json)
+def _get_webhook_url():
+    """Safely fetch Discord webhook URL from config or env"""
+    config_path = "data/targets/config.json"
+    if os.path.exists(config_path):
+        with open(config_path, "r") as cf:
+            try:
+                cfg = json.load(cf)
+                if "discord_webhook" in cfg:
+                    return cfg["discord_webhook"]
+            except Exception:
+                pass
+    return os.getenv("DISCORD_WEBHOOK", None)
 
-if __name__ == "__main__":
-    send_discord()
+def send_discord_alert(message: str, title: str = "Digital Sentinel v6.0"):
+    """
+    Sends a formatted message to Discord webhook.
+    Example:
+        send_discord_alert("Recon cycle complete ✅")
+    """
+    webhook_url = _get_webhook_url()
+    if not webhook_url:
+        print("[WARN] No Discord webhook configured.")
+        return
+
+    payload = {
+        "username": title,
+        "embeds": [
+            {
+                "title": title,
+                "description": message,
+                "color": 65280,  # green color
+                "footer": {"text": "Digital Sentinel Autonomous Mode"}
+            }
+        ]
+    }
+
+    try:
+        resp = requests.post(webhook_url, json=payload)
+        if resp.status_code == 204:
+            print("[DISCORD] Alert sent successfully ✅")
+        else:
+            print(f"[DISCORD] Failed to send alert ({resp.status_code}): {resp.text}")
+    except Exception as e:
+        print(f"[ERROR] Discord alert failed: {e}")
