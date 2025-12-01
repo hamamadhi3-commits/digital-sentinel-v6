@@ -1,0 +1,7 @@
+tesla.com
+apple.com
+microsoft.com
+google.com
+hackerone.com
+bugcrowd.com
+...
