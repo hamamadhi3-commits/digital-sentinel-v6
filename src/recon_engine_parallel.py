@@ -1,44 +1,56 @@
-import concurrent.futures
-import requests
-import time
-from pathlib import Path
-from src.ai_vuln_detector import analyze_vulnerabilities
+"""
+Digital Sentinel v6.0 – Recon Engine (Parallel)
+Purpose: Executes vulnerability scans and subdomain reconnaissance
+"""
 
-def scan_target(target):
-    """
-    Scan a single target for open ports, subdomains, and simple vulnerability patterns.
-    """
+import subprocess
+import json
+import os
+from datetime import datetime
+
+def run_recon_parallel(target):
+    """Run recon & vuln scan for a single target domain."""
+    print(f"[SCAN] Starting analysis for: {target}")
+
+    log_path = f"data/logs/{target.replace('.', '_')}.log"
+    result = {
+        "target": target,
+        "status": "unknown",
+        "timestamp": str(datetime.now())
+    }
+
     try:
-        print(f"[SCAN] Starting scan for: {target}")
-        time.sleep(2)  # simulate delay
-        result = {
-            "target": target,
-            "open_ports": [80, 443],
-            "vulns": analyze_vulnerabilities(target)
-        }
-        return result
+        # Subdomain enumeration
+        subfinder = subprocess.run(
+            ["subfinder", "-d", target, "-silent"],
+            capture_output=True, text=True
+        )
+        subs = subfinder.stdout.splitlines()
+        result["subdomains"] = subs
+
+        # HTTP probing
+        httprobe = subprocess.run(
+            ["httpx", "-l", "-", "-silent"],
+            input="\n".join(subs),
+            capture_output=True, text=True
+        )
+        result["live_hosts"] = httprobe.stdout.splitlines()
+
+        # Vulnerability scanning example (dummy PoC)
+        result["vulns"] = []
+        for host in result["live_hosts"]:
+            if "admin" in host:
+                result["vulns"].append({"host": host, "issue": "Possible Admin Panel"})
+
+        # Save log
+        os.makedirs("data/logs", exist_ok=True)
+        with open(log_path, "w") as lf:
+            json.dump(result, lf, indent=2)
+
+        print(f"[OK] Recon complete for {target} → {len(result['live_hosts'])} live hosts found")
+        result["status"] = "success"
     except Exception as e:
-        return {"target": target, "error": str(e)}
+        print(f"[ERR] {target} failed → {e}")
+        result["status"] = "failed"
 
-def run_parallel_scans(targets, max_threads=10):
-    """
-    Run multiple target scans in parallel using ThreadPoolExecutor.
-    """
-    print(f"[ENGINE] Starting parallel scans for {len(targets)} targets...")
-    results = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
-        futures = [executor.submit(scan_target, t) for t in targets]
-        for future in concurrent.futures.as_completed(futures):
-            results.append(future.result())
-    print(f"[ENGINE] Completed scanning {len(results)} targets.")
-    return results
-
-if __name__ == "__main__":
-    target_file = Path("data/targets/global_500_targets.txt")
-    targets = [t.strip() for t in target_file.open() if t.strip()]
-    output_dir = Path("data/reports")
-    output_dir.mkdir(exist_ok=True)
-    results = run_parallel_scans(targets)
-    report_path = output_dir / "scan_results.json"
-    report_path.write_text(str(results))
-    print(f"[REPORT] Saved results → {report_path}")
+    return result
