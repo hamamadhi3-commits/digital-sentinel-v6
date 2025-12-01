@@ -5,13 +5,14 @@ from src.threat_feed_integrator import fuse_threat_feeds
 from src.recon_engine_parallel import run_recon_cycle
 from src.ai_vuln_detector import ai_vuln_detector
 from src.quantum_reasoner import run_quantum_reasoning
+from src.overlord_commander import prioritize_targets, allocate_resources, generate_overlord_report
 from src.discord_notify import send_discord_alert
 
 MEMORY_FILE = "data/sentinel_memory.json"
 LOG_DIR, REPORT_DIR = "data/logs", "data/reports"
 
 # ==============================================================
-#  DIGITAL SENTINEL v8.0 — QUANTUM COGNITION MODE
+#  DIGITAL SENTINEL v9.0 — QUANTUM OVERLORD MODE
 # ==============================================================
 
 def load_memory():
@@ -28,36 +29,40 @@ def main_cycle():
     os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs(REPORT_DIR, exist_ok=True)
     mem = load_memory()
+
     start = datetime.now()
+    print(f"\n🚀 [CYCLE {mem['runs']+1}] Quantum Overlord Mode started — {start}")
 
-    print(f"\n🚀 [CYCLE {mem['runs']+1}] Quantum Cognition Mode started — {start}")
-
-    # === Threat Fusion ===
+    # === Threat Feed ===
     feed = fuse_threat_feeds()
+    targets = [p["url"] for p in feed.get("bugcrowd_feed", [])[:100]]
 
-    # === Recon & AI Detection ===
+    # === Overlord Decision ===
+    prioritized = prioritize_targets(targets)
+    clusters = allocate_resources(prioritized)
+    decision_report = generate_overlord_report(prioritized)
+
+    # === Recon + AI Reasoning ===
     try:
-        targets = [p["url"] for p in feed.get("bugcrowd_feed", [])[:50]]
-        mem["last_targets"] = targets
-        run_recon_cycle(targets)
-        ai_vuln_detector()
+        for tier, group in clusters.items():
+            print(f"\n⚙️ Launching {tier.upper()} cluster scan ({len(group)} targets)...")
+            run_recon_cycle(group)
+            ai_vuln_detector()
+            run_quantum_reasoning()
     except Exception as e:
-        print(f"[ERROR] Core cycle failure: {e}")
+        print(f"[ERROR] Cluster cycle failure: {e}")
         mem["failures"] += 1
 
-    # === Quantum Reasoning Phase ===
-    reasoning = run_quantum_reasoning()
-
-    # === Finalization ===
     duration = (datetime.now() - start).total_seconds()
     mem["runs"] += 1
     mem["avg_time"] = (mem["avg_time"]*(mem["runs"]-1) + duration)/mem["runs"]
+    mem["last_targets"] = targets
     save_memory(mem)
 
-    print(f"🏁 Cycle finished in {duration:.2f}s with {len(reasoning['cycle_thoughts'])} insights.")
+    print(f"🏁 Cycle finished in {duration:.2f}s — {len(targets)} targets processed.")
     send_discord_alert(
-        "Digital Sentinel v8.0 Cognitive Cycle",
-        f"Duration {duration:.2f}s — {len(reasoning['cycle_thoughts'])} reasoning insights generated."
+        "Digital Sentinel v9.0 – Overlord Decision Report",
+        f"Duration {duration:.2f}s\nClusters: {len(clusters['high'])} High, {len(clusters['medium'])} Medium, {len(clusters['low'])} Low"
     )
 
 if __name__ == "__main__":
