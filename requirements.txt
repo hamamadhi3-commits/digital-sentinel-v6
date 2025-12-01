@@ -1,0 +1,21 @@
+# ============================================================
+# Sentinel Autonomous Engine - Requirements (v6.1)
+# ============================================================
+
+aiohttp>=3.9.5
+requests>=2.31.0
+beautifulsoup4>=4.12.3
+asyncio
+aiofiles
+tqdm
+aiohttp_socks
+urllib3
+colorama
+rich
+pyyaml
+discord_webhook
+nest_asyncio
+psutil
+jsonlines
+pandas
+numpy
