@@ -1,41 +1,48 @@
-import random
 import json
+import random
 from datetime import datetime
-
-MEMORY_FILE = "data/sentinel_memory.json"
-
-def load_memory():
-    try:
-        return json.load(open(MEMORY_FILE))
-    except Exception:
-        return {"runs": 0, "failures": 0, "last_targets": []}
-
-def prioritize_targets(targets):
-    """Assign a dynamic priority score to each target."""
-    prioritized = []
-    for t in targets:
-        score = random.randint(50, 100)
-        if any(x in t.lower() for x in ["bank", "cloud", "api", "login", "admin"]):
-            score += 20
-        prioritized.append((t, min(score, 100)))
-    prioritized.sort(key=lambda x: x[1], reverse=True)
-    return prioritized
+from src.discord_notify import send_discord_report
 
 def allocate_resources(prioritized):
-    """Divide targets into 3 dynamic clusters based on risk."""
-    top = [t for t, s in prioritized if s > 90]
-    medium = [t for t, s in prioritized if 70 < s <= 90]
-    low = [t for t, s in prioritized if s <= 70]
-    print(f"🔱 Allocated → High:{len(top)} Medium:{len(medium)} Low:{len(low)}")
-    return {"high": top, "medium": medium, "low": low}
+    """
+    Allocates computational or network resources based on score thresholds.
+    prioritised: list of tuples or lists [(target, score, ...), ...]
+    """
+    try:
+        # Safe unpacking even if tuples have >2 elements
+        top = [item[0] for item in prioritized if item[1] > 90]
+        mid = [item[0] for item in prioritized if 70 < item[1] <= 90]
+        low = [item[0] for item in prioritized if item[1] <= 70]
 
-def generate_overlord_report(prioritized):
-    """Summarize the Overlord decision process."""
-    report = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "summary": f"Total targets ranked: {len(prioritized)}",
-        "top_targets": prioritized[:10],
-    }
-    json.dump(report, open("data/overlord_decision_log.json", "w"), indent=2)
-    print(f"🧠 Overlord Decision Summary generated → {len(prioritized)} targets ranked.")
-    return report
+        print(f"🔹 {len(top)} high-priority targets allocated.")
+        print(f"🔸 {len(mid)} medium-priority targets allocated.")
+        print(f"⚪ {len(low)} low-priority targets ignored.")
+
+        send_discord_report(
+            "Overlord Commander Allocation",
+            f"🧠 Resource allocation completed at {datetime.utcnow().isoformat()} UTC.\n"
+            f"Top: {len(top)} | Mid: {len(mid)} | Low: {len(low)}",
+            color=0x00BFFF
+        )
+        return {"top": top, "mid": mid, "low": low}
+
+    except Exception as e:
+        print(f"💥 Allocation Error: {e}")
+        send_discord_report("Overlord Commander Failure", f"💥 Error: {e}", color=0xE74C3C)
+        return {"top": [], "mid": [], "low": []}
+
+
+def simulate_command_cycle(targets):
+    """
+    Simulate one autonomous command cycle.
+    """
+    print("🚀 Initiating Overlord Neural Command Cycle...")
+    prioritized = [(t, random.randint(50, 100), random.random()) for t in targets]
+    allocations = allocate_resources(prioritized)
+    print("✅ Overlord cycle finished successfully.")
+    return allocations
+
+
+if __name__ == "__main__":
+    sample_targets = ["tesla.com", "apple.com", "microsoft.com", "google.com"]
+    simulate_command_cycle(sample_targets)
