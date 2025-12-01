@@ -1,18 +1,19 @@
 import os, json, time
 from datetime import datetime
 
+from src.overlord_commander import prioritize_targets, allocate_resources, generate_overlord_report
 from src.threat_feed_integrator import fuse_threat_feeds
 from src.recon_engine_parallel import run_recon_cycle
 from src.ai_vuln_detector import ai_vuln_detector
 from src.quantum_reasoner import run_quantum_reasoning
-from src.overlord_commander import prioritize_targets, allocate_resources, generate_overlord_report
+from src.genesis_engine import run_genesis_cycle
 from src.discord_notify import send_discord_alert
 
 MEMORY_FILE = "data/sentinel_memory.json"
 LOG_DIR, REPORT_DIR = "data/logs", "data/reports"
 
 # ==============================================================
-#  DIGITAL SENTINEL v9.0 — QUANTUM OVERLORD MODE
+#  DIGITAL SENTINEL v10.0 — GENESIS SINGULARITY MODE
 # ==============================================================
 
 def load_memory():
@@ -29,29 +30,30 @@ def main_cycle():
     os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs(REPORT_DIR, exist_ok=True)
     mem = load_memory()
-
     start = datetime.now()
-    print(f"\n🚀 [CYCLE {mem['runs']+1}] Quantum Overlord Mode started — {start}")
 
-    # === Threat Feed ===
+    print(f"\n🚀 [CYCLE {mem['runs']+1}] Genesis Singularity Mode — {start}")
+
+    # === Threat Feed & Overlord Decision ===
     feed = fuse_threat_feeds()
-    targets = [p["url"] for p in feed.get("bugcrowd_feed", [])[:100]]
-
-    # === Overlord Decision ===
+    targets = [p["url"] for p in feed.get("bugcrowd_feed", [])[:80]]
     prioritized = prioritize_targets(targets)
     clusters = allocate_resources(prioritized)
-    decision_report = generate_overlord_report(prioritized)
+    generate_overlord_report(prioritized)
 
-    # === Recon + AI Reasoning ===
+    # === Recon & AI Reasoning ===
     try:
         for tier, group in clusters.items():
-            print(f"\n⚙️ Launching {tier.upper()} cluster scan ({len(group)} targets)...")
+            print(f"\n⚙️ Launching {tier.upper()} cluster ({len(group)} targets)...")
             run_recon_cycle(group)
             ai_vuln_detector()
             run_quantum_reasoning()
     except Exception as e:
-        print(f"[ERROR] Cluster cycle failure: {e}")
+        print(f"[ERROR] Cluster failure: {e}")
         mem["failures"] += 1
+
+    # === Genesis Evolution Phase ===
+    run_genesis_cycle()
 
     duration = (datetime.now() - start).total_seconds()
     mem["runs"] += 1
@@ -61,11 +63,11 @@ def main_cycle():
 
     print(f"🏁 Cycle finished in {duration:.2f}s — {len(targets)} targets processed.")
     send_discord_alert(
-        "Digital Sentinel v9.0 – Overlord Decision Report",
-        f"Duration {duration:.2f}s\nClusters: {len(clusters['high'])} High, {len(clusters['medium'])} Medium, {len(clusters['low'])} Low"
+        "Digital Sentinel v10.0 — Genesis Singularity Cycle",
+        f"Duration: {duration:.2f}s\nFailures: {mem['failures']}\nEvolution triggered if unstable."
     )
 
 if __name__ == "__main__":
     while True:
         main_cycle()
-        time.sleep(900)  # every 15 minutes
+        time.sleep(900)
