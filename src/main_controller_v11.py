@@ -1,35 +1,46 @@
 import time
+import random
 from datetime import datetime
-from src.overlord_commander import allocate_resources
-from src.neural_node_manager import run_neural_dominion
-from src.genesis_engine import run_genesis_cycle
-from src.discord_notify import send_discord_alert
+from src.overlord_commander import simulate_command_cycle
+from src.discord_notify import send_discord_report
 
-# ===============================================================
-# DIGITAL SENTINEL v11.0 — NEURAL DOMINION MODE
-# ===============================================================
+MAX_RUNTIME = 60 * 20  # 20 minutes internal kill switch
 
 def main_cycle():
-    start = datetime.now()
-    print(f"\n⚙️ [CYCLE] Neural Dominion Mode — {start}")
+    """
+    Executes the autonomous orchestration of reconnaissance, detection,
+    and reporting subsystems with time-based safety limit.
+    """
+    start_time = time.time()
+    print(f"⚙️ [CYCLE] Neural Dominion Mode — {datetime.utcnow().isoformat()} UTC")
 
-    # Phase 1: Allocate resources across distributed nodes
-    allocate_resources(["Recon", "Detection", "Reporting", "Observation"])
+    targets = ["tesla.com", "apple.com", "microsoft.com", "google.com", "amazon.com", "samsung.com"]
+    iteration = 0
 
-    # Phase 2: Spawn Neural Nodes in parallel
-    run_neural_dominion()
+    while True:
+        iteration += 1
+        print(f"🔁 Cycle iteration #{iteration}")
+        simulate_command_cycle(targets)
+        time.sleep(random.randint(3, 6))  # Simulated idle time
 
-    # Phase 3: Adaptive self-learning cycle
-    run_genesis_cycle()
+        # Time kill-switch (20 min internal)
+        if time.time() - start_time > MAX_RUNTIME:
+            print("⏳ Sentinel cycle timed out gracefully after 20 minutes.")
+            send_discord_report(
+                "Neural Cycle Timeout",
+                "⏱️ Sentinel main controller ended gracefully after max runtime (20min).",
+                color=0xFFA500
+            )
+            break
 
-    duration = (datetime.now() - start).total_seconds()
-    send_discord_alert(
-        "Digital Sentinel v11.0 — Neural Dominion Cycle",
-        f"Cycle Duration: {duration:.2f}s\nDominion Active: All Nodes Synced."
-    )
-    print(f"🏁 Cycle completed in {duration:.2f}s\n")
+    print("✅ Main Controller finished successfully.")
+
 
 if __name__ == "__main__":
-    while True:
+    try:
         main_cycle()
-        time.sleep(900)
+    except KeyboardInterrupt:
+        print("🛑 Sentinel main cycle interrupted manually.")
+    except Exception as e:
+        print(f"💥 Main Controller Exception: {e}")
+        send_discord_report("Main Controller Error", str(e), color=0xE74C3C)
