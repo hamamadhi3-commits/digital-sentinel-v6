@@ -1,72 +1,95 @@
-"""
-Digital Sentinel v6.0 – Main Controller
-Author: Mhamad Mahdy
-Purpose: Coordinates the autonomous scanning cycle
-"""
-
 import os
-import time
 import json
-import concurrent.futures
+import time
 from datetime import datetime
 from src.recon_engine_parallel import run_recon_parallel
-from src.auto_report_compose import generate_report
-from src.discord_notify import send_discord_alert
+from src.duplication_checker import check_duplicates
+from src.auto_report_compose import compose_report
+from src.discord_notify import send_discord_message
 
-# Load configuration
-with open("data/targets/config.json", "r") as cfg:
-    CONFIG = json.load(cfg)
+# ==============================================================
+#  DIGITAL SENTINEL v6.1 — SELF-HEALING EDITION
+#  by Themoralhack & Manus
+# ==============================================================
 
-TARGET_FILE = CONFIG["target_file"]
-SCAN_INTERVAL = CONFIG["scan_interval_minutes"] * 60
-MAX_THREADS = CONFIG["threads"]
-LOG_DIR = CONFIG["log_directory"]
-REPORT_DIR = CONFIG["report_directory"]
+CONFIG_PATH = "data/targets/config.json"
+TARGET_PATH = "data/targets/global_500_targets.txt"
+LOG_DIR = "data/logs"
+REPORT_DIR = "data/reports"
 
-def load_targets():
-    """Read target list from text file."""
+def safe_mkdir(path):
+    """Create directory safely without crashing if it exists."""
     try:
-        with open(TARGET_FILE, "r") as f:
-            targets = [line.strip() for line in f if line.strip()]
-        print(f"[INFO] Loaded {len(targets)} targets from {TARGET_FILE}")
-        return targets
+        os.makedirs(path, exist_ok=True)
+    except FileExistsError:
+        pass
     except Exception as e:
-        print(f"[ERROR] Failed to load targets: {e}")
-        return []
+        print(f"[WARN] Could not create directory {path}: {e}")
+
+def safe_load_json(path, default={}):
+    """Load JSON safely or return default if file missing."""
+    try:
+        with open(path, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print(f"[WARN] Missing {path}, generating default config.")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            json.dump(default, f, indent=2)
+        return default
+    except Exception as e:
+        print(f"[ERROR] Failed to read {path}: {e}")
+        return default
 
 def main_cycle():
-    """Main scanning loop"""
-    print(f"\n🛰️  Digital Sentinel v6.0 — Autonomous Mode Started at {datetime.now()}")
-    targets = load_targets()
-    if not targets:
-        print("[WARN] No targets found. Exiting.")
+    # === Self-Healing Startup ===
+    print(f"🧠 Digital Sentinel v6.1 – Self-Healing Autonomous Mode started at {datetime.now()}")
+
+    safe_mkdir("data")
+    safe_mkdir("data/targets")
+    safe_mkdir(LOG_DIR)
+    safe_mkdir(REPORT_DIR)
+
+    cfg = safe_load_json(CONFIG_PATH, default={"mode": "autonomous", "max_parallel": 5})
+
+    # === Load Targets ===
+    targets = []
+    try:
+        with open(TARGET_PATH, "r") as f:
+            targets = [t.strip() for t in f.readlines() if t.strip()]
+        print(f"[INFO] Loaded {len(targets)} targets from {TARGET_PATH}")
+    except FileNotFoundError:
+        print(f"[ERROR] Target file not found: {TARGET_PATH}")
+        return
+    except Exception as e:
+        print(f"[ERROR] Could not load targets: {e}")
         return
 
-    os.makedirs(LOG_DIR, exist_ok=True)
-    os.makedirs(REPORT_DIR, exist_ok=True)
-
-    # Parallel Execution
-    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
-        future_to_target = {executor.submit(run_recon_parallel, target): target for target in targets}
-        for future in concurrent.futures.as_completed(future_to_target):
-            target = future_to_target[future]
-            try:
-                result = future.result()
-                print(f"[DONE] {target}: {result}")
-            except Exception as e:
-                print(f"[FAIL] {target}: {e}")
-
-    # Generate report
-    generate_report(REPORT_DIR)
-
-    # Discord notification
+    # === Recon Phase ===
     try:
-        send_discord_alert(f"✅ Digital Sentinel completed a full recon cycle at {datetime.now()}")
+        run_recon_parallel(targets)
+    except Exception as e:
+        print(f"[ERROR] Recon failed: {e}")
+
+    # === Duplication Check ===
+    try:
+        check_duplicates()
+    except Exception as e:
+        print(f"[WARN] Duplication checker error: {e}")
+
+    # === Auto Report Compose ===
+    try:
+        compose_report()
+    except Exception as e:
+        print(f"[WARN] Report compose error: {e}")
+
+    # === Discord Notify ===
+    try:
+        send_discord_message("✅ Digital Sentinel v6.1 cycle completed successfully!")
     except Exception as e:
         print(f"[WARN] Discord notification failed: {e}")
 
+    print(f"🧩 Cycle completed at {datetime.now()}")
+
 if __name__ == "__main__":
-    while True:
-        main_cycle()
-        print(f"🕒 Sleeping for {CONFIG['scan_interval_minutes']} minutes...\n")
-        time.sleep(SCAN_INTERVAL)
+    main_cycle()
