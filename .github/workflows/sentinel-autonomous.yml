@@ -1,88 +1,72 @@
-name: 🧠 Digital Sentinel v11.1 – Eternal Autonomous Mode
+name: 🚀 Eternal Recon & Overlord Cycle
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:          # دەستی کاردانەوە
+  schedule:
+    - cron: "0 */6 * * *"     # هەر 6 کاتژمێر جارێک جێبەجێ بێت (دەتوانیت بگۆڕیت)
 
 jobs:
-  eternal-cycle:
-    name: 🧠 Eternal Recon & Overlord Cycle
+  sentinel-autonomous:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    env:
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
 
     steps:
-      # =====================================================
-      # 📦 Checkout Repository
-      # =====================================================
+      # -----------------------------
+      # 1) Checkout Repo
+      # -----------------------------
       - name: 📦 Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      # =====================================================
-      # 🐍 Setup Python
-      # =====================================================
+      # -----------------------------
+      # 2) Setup Python
+      # -----------------------------
       - name: 🐍 Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: "3.10"
 
-      # =====================================================
-      # 🧩 Install Dependencies
-      # =====================================================
-      - name: 🧩 Install Dependencies
+      # -----------------------------
+      # 3) Install Requirements
+      # -----------------------------
+      - name: 📦 Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # =====================================================
-      # 🚀 Launch Main Controller
-      # =====================================================
+      # -----------------------------
+      # 4) Launch Autonomous Hunter
+      # -----------------------------
       - name: 🚀 Launch Main Controller
         run: |
-          echo ">>> Launching Main Controller v11.1..."
-          python src/main_controller_v11_1.py
+          echo "Starting Digital Sentinel v11.1..."
+          python main_controller_v11_1.py
 
-      # =====================================================
-      # 🌌 Launch Sentinel Eternal Hunter
-      # =====================================================
-      - name: 🌌 Launch Sentinel Eternal Hunter
-        run: |
-          echo ">>> Starting Eternal Hunter Engine..."
-          python src/sentinel_eternal_hunter.py
-
-      # =====================================================
-      # 🪶 Upload Logs & Reports
-      # =====================================================
-      - name: 🪶 Upload Logs & Reports
-        if: always()
-        uses: actions/upload-artifact@v4
+      # -----------------------------
+      # 5) Upload Logs
+      # -----------------------------
+      - name: 🗂 Upload Logs
+        uses: actions/upload-artifact@v3
         with:
-          name: Sentinel-Logs-and-Reports
-          path: |
-            data/logs/
-            data/reports/
+          name: sentinel-logs
+          path: data/logs/
 
-      # =====================================================
-      # 🧠 Compose Autonomous Summary
-      # =====================================================
-      - name: 🧠 Compose Autonomous Summary
-        if: always()
-        run: |
-          echo ">>> Composing AI Summary Report..."
-          python src/auto_report_compose.py
+      # -----------------------------
+      # 6) Upload Reports
+      # -----------------------------
+      - name: 📝 Upload Reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: sentinel-reports
+          path: data/results/
 
-      # =====================================================
-      # 🌐 Send Discord Summary
-      # =====================================================
+      # -----------------------------
+      # 7) Discord Summary (Optional)
+      # -----------------------------
       - name: 🌐 Send Discord Summary
-        if: always()
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        if: env.DISCORD_WEBHOOK != ''
         run: |
-          echo ">>> Sending Discord Summary..."
-          python src/sentinel_discord_reporter.py || echo "⚠️ Discord summary failed, skipping..."
-
-      # =====================================================
-      # ✅ Complete Sentinel Cycle
-      # =====================================================
-      - name: ✅ Complete Sentinel Cycle
-        if: always()
-        run: echo "Eternal Autonomous Mode cycle completed successfully ✅"
+          echo "Digital Sentinel cycle complete." > summary.txt
+          curl -H "Content-Type: application/json" \
+               -d "{\"content\": \"✅ Sentinel Autonomous Cycle Completed\"}" \
+               $DISCORD_WEBHOOK
