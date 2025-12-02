@@ -2,67 +2,39 @@ name: "🚀 Sentinel Autonomous Cycle"
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 */6 * * *"   # Run every 6 hours
-
-permissions:
-  contents: read
-  actions: read
 
 jobs:
-
-  sentinel-autonomous:
-    name: "Launch Main Controller"
+  run-sentinel:
     runs-on: ubuntu-latest
 
-    env:
-      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-
     steps:
+    - name: 📦 Checkout Repository
+      uses: actions/checkout@v4
 
-      # -----------------------------------
-      # 1. Checkout source code
-      # -----------------------------------
-      - name: 📦 Checkout Repository
-        uses: actions/checkout@v4
+    - name: 🐍 Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
 
-      # -----------------------------------
-      # 2. Setup Python
-      # -----------------------------------
-      - name: 🐍 Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+    - name: 📚 Install Requirements
+      run: |
+        pip install -r requirements.txt
 
-      # -----------------------------------
-      # 3. Install dependencies
-      # -----------------------------------
-      - name: 📚 Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+    - name: 🚀 Launch Main Controller
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      run: |
+        echo "Starting Sentinel Autonomous Controller..."
+        python src/main_controller_v11_1.py
 
-      # -----------------------------------
-      # 4. Run Autonomous Controller
-      # -----------------------------------
-      - name: 🤖 Launch Main Controller (Autonomous Mode)
-        run: |
-          python main_controller_v11_1.py
+    - name: 📤 Upload Logs
+      uses: actions/upload-artifact@v4
+      with:
+        name: logs
+        path: data/logs/
 
-      # -----------------------------------
-      # 5. Upload logs (NEW – using v4)
-      # -----------------------------------
-      - name: 📤 Upload Logs
-        uses: actions/upload-artifact@v4
-        with:
-          name: sentinel-logs
-          path: data/logs/
-
-      # -----------------------------------
-      # 6. Upload Reports (NEW – using v4)
-      # -----------------------------------
-      - name: 📤 Upload Reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: sentinel-reports
-          path: data/results/
+    - name: 📤 Upload Reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: reports
+        path: data/reports/
