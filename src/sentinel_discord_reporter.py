@@ -1,28 +1,43 @@
-# Digital Sentinel v9 – Discord Reporter (Updated for Chains)
-# -----------------------------------------------------------
-
 import requests
 import json
-import os
+from datetime import datetime
 
-WEBHOOK = os.getenv("DISCORD_WEBHOOK")
+DISCORD_WEBHOOK = "<YOUR_WEBHOOK_HERE>"  # make sure this is set in secrets
 
-def send_chain_report(chain):
-    if not WEBHOOK:
-        return
+def send_message(payload: dict):
+    """Send raw JSON message to Discord."""
+    headers = {"Content-Type": "application/json"}
+    try:
+        requests.post(DISCORD_WEBHOOK, data=json.dumps(payload), headers=headers)
+    except Exception as e:
+        print(f"[Discord] Error sending message: {e}")
 
-    text = f"""
-🚨 **EXPLOIT CHAIN DETECTED**  
-**Domain:** {chain['domain']}
-**Type:** {chain['type']}
-**Severity:** {chain['severity']}
-**CVSS:** {chain['score']}
-**Reward Prediction:** {chain['reward']}
+# =====================================================
+# 🔥 NEW FUNCTION — REQUIRED BY main_controller_v11_1
+# =====================================================
+def send_finding_report(summary, target, vrt, url, description, attachments=None):
+    """Send a formatted vulnerability finding to Discord."""
+    
+    embed = {
+        "title": f"🚨 New Finding Detected — {summary}",
+        "color": 15158332,
+        "fields": [
+            {"name": "🎯 Target", "value": target, "inline": False},
+            {"name": "📌 VRT Category", "value": vrt, "inline": False},
+            {"name": "🔗 URL", "value": url, "inline": False},
+            {"name": "📝 Description", "value": description[:1024], "inline": False},
+        ],
+        "footer": {"text": f"Digital Sentinel • {datetime.utcnow().isoformat()} UTC"},
+    }
 
-**Exploit Steps:**
-{" → ".join(chain['steps'])}
-"""
+    payload = {"embeds": [embed]}
 
-    payload = {"content": text}
+    # Attachments (optional)
+    if attachments:
+        attach_text = "\n".join(attachments)
+        payload["embeds"][0]["fields"].append(
+            {"name": "📎 Attachments", "value": attach_text, "inline": False}
+        )
 
-    requests.post(WEBHOOK, json=payload)
+    send_message(payload)
+    print("[Discord] Finding report sent successfully!")
