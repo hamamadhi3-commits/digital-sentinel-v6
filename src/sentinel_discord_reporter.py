@@ -1,43 +1,54 @@
 import requests
 import json
-from datetime import datetime
+import os
 
-DISCORD_WEBHOOK = "<YOUR_WEBHOOK_HERE>"  # make sure this is set in secrets
+DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK", "").strip()
 
-def send_message(payload: dict):
-    """Send raw JSON message to Discord."""
-    headers = {"Content-Type": "application/json"}
+def _send(message: str):
+    if not DISCORD_WEBHOOK:
+        print("⚠️ No Discord Webhook Found!")
+        return
+
+    payload = {"content": message}
+
     try:
-        requests.post(DISCORD_WEBHOOK, data=json.dumps(payload), headers=headers)
-    except Exception as e:
-        print(f"[Discord] Error sending message: {e}")
-
-# =====================================================
-# 🔥 NEW FUNCTION — REQUIRED BY main_controller_v11_1
-# =====================================================
-def send_finding_report(summary, target, vrt, url, description, attachments=None):
-    """Send a formatted vulnerability finding to Discord."""
-    
-    embed = {
-        "title": f"🚨 New Finding Detected — {summary}",
-        "color": 15158332,
-        "fields": [
-            {"name": "🎯 Target", "value": target, "inline": False},
-            {"name": "📌 VRT Category", "value": vrt, "inline": False},
-            {"name": "🔗 URL", "value": url, "inline": False},
-            {"name": "📝 Description", "value": description[:1024], "inline": False},
-        ],
-        "footer": {"text": f"Digital Sentinel • {datetime.utcnow().isoformat()} UTC"},
-    }
-
-    payload = {"embeds": [embed]}
-
-    # Attachments (optional)
-    if attachments:
-        attach_text = "\n".join(attachments)
-        payload["embeds"][0]["fields"].append(
-            {"name": "📎 Attachments", "value": attach_text, "inline": False}
+        requests.post(
+            DISCORD_WEBHOOK,
+            data=json.dumps(payload),
+            headers={"Content-Type": "application/json"}
         )
+        print("📤 Discord Message Sent")
+    except Exception as e:
+        print(f"❌ Discord Send Error: {e}")
 
-    send_message(payload)
-    print("[Discord] Finding report sent successfully!")
+
+# -------------------------------------------------
+#   SEND FINDING REPORT (Single Vuln)
+# -------------------------------------------------
+def send_finding_report(finding):
+    sev = finding.get("severity", "UNKNOWN")
+    target = finding.get("target", "unknown target")
+    title = finding.get("title", "No title")
+    url = finding.get("url", "No url")
+
+    msg = f"""
+🔎 **New Vulnerability Found**
+🎯 Target: `{target}`
+⚠️ Severity: **{sev}**
+📌 {title}
+🔗 {url}
+"""
+    _send(msg)
+
+
+# -------------------------------------------------
+#   SEND EXPLOIT-CHAIN REPORT
+# -------------------------------------------------
+def send_chain_report(chain):
+    msg = "🔥 **EXPLOIT CHAIN DETECTED!**\n"
+    msg += f"Total steps: {len(chain)}\n\n"
+
+    for step in chain:
+        msg += f"➡️ {step.get('title', 'Unknown')} (Severity: {step.get('severity')})\n"
+
+    _send(msg)
