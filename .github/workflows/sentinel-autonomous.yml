@@ -1,13 +1,13 @@
-name: Digital Sentinel v11.1 – Eternal Autonomous Mode
+name: 🧠 Digital Sentinel v11.1 – Eternal Autonomous Mode
 
 on:
   workflow_dispatch:
 
 jobs:
-  recon-cycle:
+  eternal-cycle:
     name: 🧠 Eternal Recon & Overlord Cycle
     runs-on: ubuntu-latest
-    environment: production
+    timeout-minutes: 360
 
     steps:
       - name: 📦 Checkout Repository
@@ -16,41 +16,55 @@ jobs:
       - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
-      - name: 🧰 Install Dependencies
+      - name: 🧩 Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt || true
+          pip install -r requirements.txt
 
+      # =====================================================
+      # 🧠 Launch Main Controller
+      # =====================================================
       - name: 🚀 Launch Main Controller
         run: |
           echo ">>> Launching Main Controller v11.1..."
           python src/main_controller_v11_1.py
 
+      # =====================================================
+      # 🌌 Launch Sentinel Eternal Hunter
+      # =====================================================
       - name: 🧠 Launch Sentinel Eternal Hunter
         run: |
-          echo ">>> Starting sentinel_eternal_hunter.py"
+          echo ">>> Starting Eternal Hunter Engine..."
           python src/sentinel_eternal_hunter.py
 
+      # =====================================================
+      # 🪶 Upload Logs & Reports (Always run)
+      # =====================================================
       - name: 🪶 Upload Logs & Reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: digital-sentinel-v11.1-reports
+          name: Sentinel-Logs-and-Reports
           path: |
             data/logs/
             data/reports/
-          if-no-files-found: warn
 
-      - name: 🛰️ Send Discord Summary
+      # =====================================================
+      # 🛰️ Send Discord Summary (Only if webhook configured)
+      # =====================================================
+      - name: 🌐 Send Discord Summary
         if: always()
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           echo ">>> Sending Discord Summary..."
-          python src/sentinel_discord_reporter.py
+          python src/sentinel_discord_reporter.py || echo "⚠️ Discord summary failed, skipping..."
 
+      # =====================================================
+      # 🧠 Complete Cycle
+      # =====================================================
       - name: ✅ Complete Sentinel Cycle
         if: always()
-        run: echo "All systems completed successfully ✅"
+        run: echo "Eternal Autonomous Mode cycle completed successfully ✅"
