@@ -10,21 +10,30 @@ jobs:
     timeout-minutes: 360
 
     steps:
+      # =====================================================
+      # 📦 Checkout Repository
+      # =====================================================
       - name: 📦 Checkout Repository
         uses: actions/checkout@v4
 
+      # =====================================================
+      # 🐍 Setup Python
+      # =====================================================
       - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
+      # =====================================================
+      # 🧩 Install Dependencies
+      # =====================================================
       - name: 🧩 Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       # =====================================================
-      # 🧠 Launch Main Controller
+      # 🚀 Launch Main Controller
       # =====================================================
       - name: 🚀 Launch Main Controller
         run: |
@@ -34,13 +43,13 @@ jobs:
       # =====================================================
       # 🌌 Launch Sentinel Eternal Hunter
       # =====================================================
-      - name: 🧠 Launch Sentinel Eternal Hunter
+      - name: 🌌 Launch Sentinel Eternal Hunter
         run: |
           echo ">>> Starting Eternal Hunter Engine..."
           python src/sentinel_eternal_hunter.py
 
       # =====================================================
-      # 🪶 Upload Logs & Reports (Always run)
+      # 🪶 Upload Logs & Reports
       # =====================================================
       - name: 🪶 Upload Logs & Reports
         if: always()
@@ -52,7 +61,16 @@ jobs:
             data/reports/
 
       # =====================================================
-      # 🛰️ Send Discord Summary (Only if webhook configured)
+      # 🧠 Compose Autonomous Summary
+      # =====================================================
+      - name: 🧠 Compose Autonomous Summary
+        if: always()
+        run: |
+          echo ">>> Composing AI Summary Report..."
+          python src/auto_report_compose.py
+
+      # =====================================================
+      # 🌐 Send Discord Summary
       # =====================================================
       - name: 🌐 Send Discord Summary
         if: always()
@@ -63,7 +81,7 @@ jobs:
           python src/sentinel_discord_reporter.py || echo "⚠️ Discord summary failed, skipping..."
 
       # =====================================================
-      # 🧠 Complete Cycle
+      # ✅ Complete Sentinel Cycle
       # =====================================================
       - name: ✅ Complete Sentinel Cycle
         if: always()
