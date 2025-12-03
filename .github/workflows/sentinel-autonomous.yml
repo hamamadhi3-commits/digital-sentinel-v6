@@ -4,61 +4,62 @@ on:
   workflow_dispatch:
 
 jobs:
-  run-scan:
-    name: "🚀 Launch Main Controller"
+  run-sentinel:
+    name: "run-scan"
     runs-on: ubuntu-latest
 
-    steps:
+    permissions:
+      contents: read
+      actions: read
 
-      # ------------------------------
-      #  CHECKOUT REPOSITORY
-      # ------------------------------
+    steps:
+      # -------------------------------
+      # 1. Checkout Repository
+      # -------------------------------
       - name: 📦 Checkout Repository
         uses: actions/checkout@v4
 
-      # ------------------------------
-      #  PYTHON SETUP
-      # ------------------------------
+      # -------------------------------
+      # 2. Setup Python
+      # -------------------------------
       - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
-      # ------------------------------
-      #  INSTALL DEPENDENCIES
-      # ------------------------------
-      - name: 📂 Install Dependencies
+      # -------------------------------
+      # 3. Install Dependencies
+      # -------------------------------
+      - name: 📁 Install Dependencies
         run: |
-          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # ------------------------------
-      #  RUN MAIN CONTROLLER
-      # ------------------------------
+      # -------------------------------
+      # 4. Run Autonomous Main Controller
+      # -------------------------------
       - name: 🚀 Launch Main Controller
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          echo "[INFO] Starting Digital Sentinel…"
-          python src/main_controller_v11_1.py
-        continue-on-error: false
+          cd src
+          python3 main_controller_v11_1.py
 
-      # ------------------------------
-      #  UPLOAD SCAN LOGS
-      # ------------------------------
-      - name: 📤 Upload Logs
-        if: always()
+      # -------------------------------
+      # 5. Upload Logs (v4)
+      # -------------------------------
+      - name: 🔼 Upload Logs
         uses: actions/upload-artifact@v4
         with:
           name: sentinel-logs
           path: data/logs/
-          retention-days: 7
+          if-no-files-found: ignore
 
-      # ------------------------------
-      #  UPLOAD SCAN REPORTS
-      # ------------------------------
-      - name: 📤 Upload Reports
-        if: always()
+      # -------------------------------
+      # 6. Upload Reports (v4)
+      # -------------------------------
+      - name: 🔼 Upload Reports
         uses: actions/upload-artifact@v4
         with:
           name: sentinel-reports
           path: data/reports/
-          retention-days: 7
+          if-no-files-found: ignore
