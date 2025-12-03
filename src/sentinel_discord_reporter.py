@@ -1,54 +1,42 @@
-import requests
-import json
 import os
+import json
+import requests
 
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK", "").strip()
 
-def _send(message: str):
+def send(msg):
     if not DISCORD_WEBHOOK:
-        print("⚠️ No Discord Webhook Found!")
+        print("❌ No DISCORD_WEBHOOK!")
         return
-
-    payload = {"content": message}
 
     try:
         requests.post(
             DISCORD_WEBHOOK,
-            data=json.dumps(payload),
-            headers={"Content-Type": "application/json"}
+            data=json.dumps({"content": msg}),
+            headers={"Content-Type": "application/json"},
+            timeout=8
         )
-        print("📤 Discord Message Sent")
+        print("📤 Discord message sent.")
     except Exception as e:
-        print(f"❌ Discord Send Error: {e}")
+        print(f"❌ Discord error: {e}")
 
-
-# -------------------------------------------------
-#   SEND FINDING REPORT (Single Vuln)
-# -------------------------------------------------
-def send_finding_report(finding):
-    sev = finding.get("severity", "UNKNOWN")
-    target = finding.get("target", "unknown target")
-    title = finding.get("title", "No title")
-    url = finding.get("url", "No url")
+# Report for single finding
+def send_finding_report(f):
+    sev = f.get("severity", "UNKNOWN")
+    tgt = f.get("host", "unknown")
+    tpl = f.get("template-id", "N/A")
 
     msg = f"""
-🔎 **New Vulnerability Found**
-🎯 Target: `{target}`
+🔎 **New Finding**
+🎯 Target: `{tgt}`
 ⚠️ Severity: **{sev}**
-📌 {title}
-🔗 {url}
+📄 Template: `{tpl}`
 """
-    _send(msg)
+    send(msg)
 
-
-# -------------------------------------------------
-#   SEND EXPLOIT-CHAIN REPORT
-# -------------------------------------------------
+# Chain report (Phase 9)
 def send_chain_report(chain):
-    msg = "🔥 **EXPLOIT CHAIN DETECTED!**\n"
-    msg += f"Total steps: {len(chain)}\n\n"
-
-    for step in chain:
-        msg += f"➡️ {step.get('title', 'Unknown')} (Severity: {step.get('severity')})\n"
-
-    _send(msg)
+    text = "🔥 **EXPLOIT CHAIN DETECTED!**\n\n"
+    for c in chain:
+        text += f"➡️ {c.get('template-id')} (Severity: {c.get('severity')})\n"
+    send(text)
