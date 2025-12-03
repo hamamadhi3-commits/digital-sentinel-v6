@@ -1,65 +1,45 @@
-name: "🚀 Sentinel Autonomous Cycle"
+name: 🚀 Sentinel Autonomous Cycle
 
 on:
   workflow_dispatch:
 
 jobs:
-  run-sentinel:
-    name: "run-scan"
+  run-scan:
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: read
-      actions: read
-
     steps:
-      # -------------------------------
-      # 1. Checkout Repository
-      # -------------------------------
+      # 1) Checkout repo
       - name: 📦 Checkout Repository
         uses: actions/checkout@v4
 
-      # -------------------------------
-      # 2. Setup Python
-      # -------------------------------
+      # 2) Setup Python
       - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      # -------------------------------
-      # 3. Install Dependencies
-      # -------------------------------
-      - name: 📁 Install Dependencies
+      # 3) Install Dependencies
+      - name: 📚 Install Dependencies
         run: |
+          pip install --upgrade pip
           pip install -r requirements.txt
 
-      # -------------------------------
-      # 4. Run Autonomous Main Controller
-      # -------------------------------
+      # 4) Run Main Controller (SINGLE SRC - NO DUPLICATE)
       - name: 🚀 Launch Main Controller
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           cd src
-          python3 main_controller_v11_1.py
+          python main_controller_v11_1.py
 
-      # -------------------------------
-      # 5. Upload Logs (v4)
-      # -------------------------------
-      - name: 🔼 Upload Logs
+      # 5) Upload Logs
+      - name: 📤 Upload Logs
         uses: actions/upload-artifact@v4
         with:
           name: sentinel-logs
           path: data/logs/
-          if-no-files-found: ignore
 
-      # -------------------------------
-      # 6. Upload Reports (v4)
-      # -------------------------------
-      - name: 🔼 Upload Reports
+      # 6) Upload Reports
+      - name: 📤 Upload Reports
         uses: actions/upload-artifact@v4
         with:
           name: sentinel-reports
           path: data/reports/
-          if-no-files-found: ignore
