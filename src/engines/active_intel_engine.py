@@ -1,106 +1,74 @@
 import subprocess
 import json
+import os
+import socket
 import httpx
-import tldextract
+import asyncio
+
+OUTPUT_DIR = "data/active_intel/"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
-def run_cmd(cmd):
-    """Run shell commands safely and return output lines."""
+def run_nmap_scan(domain):
     try:
-        result = subprocess.run(
-            cmd,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-        return result.stdout.splitlines()
-    except Exception:
-        return []
+        print(f"🔎 Running Nmap scan on {domain} ...")
+
+        cmd = ["nmap", "-sV", "-T4", "-p-", domain]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+        output_path = f"{OUTPUT_DIR}/{domain}_nmap.txt"
+        with open(output_path, "w") as f:
+            f.write(result.stdout)
+
+        return output_path
+
+    except Exception as e:
+        print(f"❌ Nmap scan failed: {e}")
+        return None
 
 
-def http_probe(domain):
-    """Probe HTTP/HTTPS and detect status codes + technologies."""
-    results = []
-
-    urls = [
-        f"http://{domain}",
-        f"https://{domain}"
-    ]
-
-    for url in urls:
-        try:
-            r = httpx.get(url, timeout=5, follow_redirects=True)
-            tech = detect_technologies(r)
-
-            results.append({
-                "url": url,
-                "status": r.status_code,
-                "headers": dict(r.headers),
-                "technologies": tech
-            })
-        except:
-            pass
-
-    return results
+def resolve_dns(domain):
+    try:
+        print(f"🌐 Resolving DNS → {domain}")
+        ip = socket.gethostbyname(domain)
+        return {"domain": domain, "ip": ip}
+    except:
+        return {"domain": domain, "ip": None}
 
 
-def detect_technologies(response):
-    """Simple tech detection from headers + HTML."""
-    tech = []
-
-    headers = {k.lower(): v.lower() for k, v in response.headers.items()}
-    body = response.text.lower()
-
-    # --- HEADER BASED TECHS ---
-    if "cloudflare" in str(headers):
-        tech.append("Cloudflare")
-    if "nginx" in str(headers):
-        tech.append("Nginx")
-    if "apache" in str(headers):
-        tech.append("Apache")
-    if "powered-by" in str(headers):
-        tech.append(headers.get("x-powered-by", ""))
-
-    # --- BODY BASED ---
-    if "wp-content" in body:
-        tech.append("WordPress")
-    if "shopify" in body:
-        tech.append("Shopify")
-    if "drupal" in body:
-        tech.append("Drupal")
-    if "react" in body:
-        tech.append("ReactJS")
-    if "vue" in body:
-        tech.append("VueJS")
-
-    return list(set(tech))
+async def check_http(domain):
+    url = f"http://{domain}"
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.get(url)
+            return {"domain": domain, "status": r.status_code}
+    except:
+        return {"domain": domain, "status": None}
 
 
-def port_scan(domain):
-    """Very fast top-ports scan using nmap (already in requirements)."""
-    cmd = f"nmap -T4 --top-ports 50 -oG - {domain}"
-    lines = run_cmd(cmd)
+def run_active_intel(domain):
+    print(f"\n🚀 ACTIVE INTEL ENGINE → {domain}")
 
-    ports = []
-    for line in lines:
-        if "/open/" in line:
-            parts = line.split()
-            for p in parts:
-                if "/open/" in p:
-                    ports.append(p)
+    dns_info = resolve_dns(domain)
 
-    return ports
+    # HTTP check
+    try:
+        http_result = asyncio.run(check_http(domain))
+    except:
+        http_result = None
 
-
-def run_active_engine(domain):
-    """Main Execution Function"""
-    print(f"🔎 [ACTIVE] Scanning → {domain}")
+    # Nmap port scan
+    nmap_file = run_nmap_scan(domain)
 
     result = {
-        "domain": domain,
-        "ports": port_scan(domain),
-        "http_probe": http_probe(domain)
+        "dns": dns_info,
+        "http": http_result,
+        "nmap_output": nmap_file
     }
 
+    output_json = f"{OUTPUT_DIR}/{domain}_active_intel.json"
+    with open(output_json, "w") as f:
+        json.dump(result, f, indent=2)
+
+    print(f"📦 Saved → {output_json}")
     return result
