@@ -1,62 +1,59 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-"""
-Passive Intel Engine v1.0
-Generates passive reconnaissance data:
-- Subdomains
-- ASN info
-- DNS data
-- Shodan-lite info
-"""
-
-import os
+import requests
 import tldextract
-import dns.resolver
-import subprocess
+import json
+import os
+from bs4 import BeautifulSoup
 
-# Output folder
-OUT_DIR = "data/passive"
-os.makedirs(OUT_DIR, exist_ok=True)
-
-
-def collect_dns(domain):
-    result = {"A": [], "AAAA": [], "MX": [], "TXT": []}
-    for rtype in result.keys():
-        try:
-            answers = dns.resolver.resolve(domain, rtype)
-            result[rtype] = [str(r) for r in answers]
-        except:
-            pass
-    return result
+RESULT_DIR = "data/results/"
+os.makedirs(RESULT_DIR, exist_ok=True)
 
 
-def subdomain_enum(domain):
-    wordlist = [
-        "www", "mail", "api", "dev", "test", "m", "staging", "portal"
+def save_result(domain, data):
+    out = os.path.join(RESULT_DIR, f"{domain}_passive.json")
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def fetch_html(domain):
+    try:
+        r = requests.get(f"http://{domain}", timeout=5)
+        return r.text
+    except:
+        return ""
+
+
+def extract_links(html):
+    soup = BeautifulSoup(html, "lxml")
+    links = []
+    for a in soup.find_all("a", href=True):
+        links.append(a["href"])
+    return links
+
+
+def extract_subdomains(domain):
+    # Simple placeholder — later we upgrade with amass/subfinder
+    parts = domain.split(".")
+    base = ".".join(parts[-2:])
+    return [
+        f"app.{base}",
+        f"dev.{base}",
+        f"api.{base}"
     ]
-    found = []
-    for sub in wordlist:
-        full = f"{sub}.{domain}"
-        try:
-            dns.resolver.resolve(full, "A")
-            found.append(full)
-        except:
-            continue
-    return found
 
 
-def run_passive_intel(domain):
-    print(f"[+] Passive Intel: {domain}")
+def passive_collect(domain):
+    print(f"[+] Passive collecting → {domain}")
 
-    out_file = os.path.join(OUT_DIR, f"{domain}.txt")
+    html = fetch_html(domain)
+    links = extract_links(html)
+    subs = extract_subdomains(domain)
 
-    data = {}
-    data["dns"] = collect_dns(domain)
-    data["subdomains"] = subdomain_enum(domain)
+    result = {
+        "domain": domain,
+        "subdomains": subs,
+        "links": links,
+        "total_links": len(links)
+    }
 
-    with open(out_file, "w", encoding="utf-8") as f:
-        f.write(str(data))
-
-    print(f"[+] Saved → {out_file}")
-    return data
+    save_result(domain, result)
+    return result
