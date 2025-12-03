@@ -1,37 +1,46 @@
 name: 🚀 Sentinel Autonomous Cycle
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:   # بە دەستی خۆت لە Actions دەست پێدەکەیت
 
 jobs:
   run-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 360   # تا ٦ كاتژمێر ئازادە كار بكات
 
     steps:
+      # 1) Checkout repo
       - name: 📦 Checkout Repository
         uses: actions/checkout@v4
 
+      # 2) Setup Python
       - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
+      # 3) Install Dependencies
       - name: 📚 Install Dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # 4) Run Main Controller (لە ریشەی repo ـە، نه ناو src/)
       - name: 🚀 Launch Main Controller
         run: |
           python src/main_controller_v11_1.py
 
+      # 5) Upload Logs
       - name: 📤 Upload Logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sentinel-logs
           path: data/logs/
 
+      # 6) Upload Reports
       - name: 📤 Upload Reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sentinel-reports
