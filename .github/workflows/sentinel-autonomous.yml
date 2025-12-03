@@ -5,35 +5,60 @@ on:
 
 jobs:
   run-scan:
+    name: "🚀 Launch Main Controller"
     runs-on: ubuntu-latest
 
     steps:
+
+      # ------------------------------
+      #  CHECKOUT REPOSITORY
+      # ------------------------------
       - name: 📦 Checkout Repository
         uses: actions/checkout@v4
 
+      # ------------------------------
+      #  PYTHON SETUP
+      # ------------------------------
       - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.11"
 
-      - name: 📁 Install Dependencies
+      # ------------------------------
+      #  INSTALL DEPENDENCIES
+      # ------------------------------
+      - name: 📂 Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: ▶️ Launch Main Controller
+      # ------------------------------
+      #  RUN MAIN CONTROLLER
+      # ------------------------------
+      - name: 🚀 Launch Main Controller
         run: |
+          echo "[INFO] Starting Digital Sentinel…"
           python src/main_controller_v11_1.py
+        continue-on-error: false
 
-      # OPTIONAL — Save logs/reports if needed
+      # ------------------------------
+      #  UPLOAD SCAN LOGS
+      # ------------------------------
       - name: 📤 Upload Logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: logs
+          name: sentinel-logs
           path: data/logs/
+          retention-days: 7
 
+      # ------------------------------
+      #  UPLOAD SCAN REPORTS
+      # ------------------------------
       - name: 📤 Upload Reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: reports
+          name: sentinel-reports
           path: data/reports/
+          retention-days: 7
