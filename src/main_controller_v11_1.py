@@ -1,65 +1,155 @@
-import json
+# ---------------------------------------------------------
+# Digital Sentinel v11.1 — MAIN CONTROLLER
+# Autonomous Vulnerability Hunter + AI Prioritization + Chains
+# ---------------------------------------------------------
+
+import os
 import time
-from modules.subdomain_expander_v2 import run_expander   # ← NEW IMPORT
+import json
+import traceback
+from datetime import datetime
+
+from ai_priority import analyze_vulnerability
+from chain_detector import detect_exploit_chains
+from sentinel_discord_reporter import send_chain_report, send_finding_report
+from sentinel_scan_engine import run_full_scan
 
 
-def perform_subdomain_scan(target):
-    print(f"[SCAN] Subdomains → {target}")
-    # ئەمە ڕووتینی سەرەتاییەکەتە – ئەگەر فایلی deep scan هەیە ئەوی جێگر بکە
-    return ["www." + target, "api." + target]
+# ===========================
+#  CONFIGURATION
+# ===========================
+
+TARGET_FILE = "data/targets/global_500_targets.txt"
+RESULT_DIR  = "data/results"
+LOG_DIR     = "data/logs"
+
+os.makedirs(LOG_DIR, exist_ok=True)
+os.makedirs(RESULT_DIR, exist_ok=True)
+
+MAIN_LOG = os.path.join(LOG_DIR, f"controller_{int(time.time())}.log")
 
 
-def perform_full_scan(target):
-    print("=" * 50)
-    print(f"🚀 Full Scan → {target}")
-    print("=" * 50)
+# ===========================
+#  LOGGING SYSTEM
+# ===========================
 
-    # STEP 1 — Normal subdomain scan
-    subdomains = perform_subdomain_scan(target)
+def log(msg):
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{timestamp}] {msg}"
+    print(line)
+    with open(MAIN_LOG, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
 
-    # STEP 2 — Expansion (NEW)
-    expanded = run_expander(target)
-    subdomains = list(set(subdomains + expanded))
 
-    print(f"🟢 Total Subdomains found for {target}: {len(subdomains)}")
-
-    findings = []
-
-    # هەرچ کۆدی scan یان vuln check که پێشتر بوو، لێرە دابنێ
-    # نمونه:
-    for sub in subdomains:
-        print(f"[SCAN] Checking → {sub}")
-        # … security checks …
-
-    return {
-        "target": target,
-        "subdomains": subdomains,
-        "findings": findings
-    }
-
+# ===========================
+#  LOAD TARGETS
+# ===========================
 
 def load_targets():
-    with open("data/targets/targets.txt") as f:
-        return [x.strip() for x in f.readlines()]
+    if not os.path.exists(TARGET_FILE):
+        log("❌ Target file not found!")
+        return []
+
+    with open(TARGET_FILE, "r", encoding="utf-8") as f:
+        domains = [l.strip() for l in f if l.strip()]
+
+    return domains
 
 
-def main():
-    print("🚀 Starting Digital Sentinel v11.1 (Autonomous Mode)")
-    targets = load_targets()
-    print(f"🎯 Loaded {len(targets)} targets.")
+# ===========================
+#  SAVE FINDINGS
+# ===========================
 
-    for target in targets:
-        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 🔵 Processing target → {target}")
-        result = perform_full_scan(target)
+def save_result(domain, findings):
+    outf = os.path.join(RESULT_DIR, f"{domain}_findings.json")
+    with open(outf, "w", encoding="utf-8") as f:
+        json.dump(findings, f, indent=2)
+    log(f"📁 Saved results for {domain}")
 
-        # Save reports
-        with open(f"data/reports/{target}.json", "w") as f:
-            json.dump(result, f, indent=2)
 
-        print(f"[DONE] Report saved for {target}")
+# ===========================
+#  MAIN CONTROLLER
+# ===========================
 
-    print("🚀 FINISHED ALL TARGETS")
+def main_controller():
+    log("🚀 Starting Digital Sentinel v11.1 (Autonomous Mode)")
 
+    while True:
+        try:
+            # ------------------------------------------
+            # STEP 1 — Load targets
+            # ------------------------------------------
+            targets = load_targets()
+            log(f"🎯 Loaded {len(targets)} targets.")
+
+            if not targets:
+                log("⚠️ No targets found. Sleeping 10 minutes...")
+                time.sleep(600)
+                continue
+
+            # ------------------------------------------
+            # STEP 2 — Loop through each domain
+            # ------------------------------------------
+            all_findings = []
+
+            for domain in targets:
+                log(f"🟦 Processing target → {domain}")
+
+                # Run Scan
+                results = run_full_scan(domain)
+
+                if not results:
+                    log(f"⚠️ No findings for {domain}")
+                    continue
+
+                # ------------------------------------------
+                # STEP 3 — AI Prioritization
+                # ------------------------------------------
+                enhanced = []
+                for f in results:
+                    enhanced.append(analyze_vulnerability(f, domain))
+
+                save_result(domain, enhanced)
+                all_findings.extend(enhanced)
+
+                # ------------------------------------------
+                # STEP 4 — SEND FINDING REPORTS (Critical/High/Medium)
+                # ------------------------------------------
+                for f in enhanced:
+                    if f["cvss"] >= 5:  # MEDIUM+
+                        send_finding_report(f)
+
+            # --------------------------------------------------
+            # STEP 5 — Exploit Chain Detection
+            # --------------------------------------------------
+            log("🔍 Checking for exploit-chains...")
+
+            chains = detect_exploit_chains(all_findings)
+
+            if chains:
+                log(f"🔥 {len(chains)} exploit chains detected.")
+                for ch in chains:
+                    send_chain_report(ch)
+            else:
+                log("ℹ️ No exploit chains found this round.")
+
+            # --------------------------------------------------
+            # STEP 6 — Autonomous Loop
+            # --------------------------------------------------
+            log("⏳ Sleeping 30 minutes before next cycle...")
+            time.sleep(1800)
+
+        except Exception as e:
+            log(f"❌ Fatal Controller Error: {e}")
+            traceback.print_exc()
+
+            log("♻️ Restarting Controller in 60 seconds...")
+            time.sleep(60)
+
+
+# ===========================
+#  ENTRYPOINT
+# ===========================
 
 if __name__ == "__main__":
-    main()
+    main_controller()
