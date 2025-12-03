@@ -1,14 +1,3 @@
-# ============================================================
-# 🌐 GLOBAL 500 BUG BOUNTY TARGETS LIST (v6.1)
-# Created for: Sentinel Autonomous Engine
-# Author: Themoralhack (mhamad mahdy)
-# Description:
-#   This list includes 500+ high-value, public-scope targets
-#   from Bugcrowd, HackerOne, and YesWeHack for autonomous
-#   reconnaissance and vulnerability research.
-# ============================================================
-
-# === TECH GIANTS ===
 tesla.com
 apple.com
 google.com
