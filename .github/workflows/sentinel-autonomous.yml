@@ -1,33 +1,59 @@
-name: Sentinel Autonomous Cycle
+name: 🚀 Sentinel Quantum Autonomous Cycle
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 */2 * * *"  # هەموو دوو کاتژمێر جارێک بەخۆی دەستپێدەکاتەوە
 
 jobs:
-  run-scan:
+  run-quantum-scan:
     runs-on: ubuntu-latest
+
     steps:
-      - name: 📥 Checkout Repository
+      # 1️⃣ Checkout repository
+      - name: 📦 Checkout Repository
         uses: actions/checkout@v4
 
+      # 2️⃣ Setup Python
       - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: 📦 Install Dependencies
+      # 3️⃣ Install Dependencies
+      - name: 📚 Install Dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install requests httpx beautifulsoup4 tldextract
+          pip install --upgrade pip
+          pip install -r requirements.txt
 
+      # 4️⃣ Run Main AI Controller
       - name: 🚀 Launch Main Controller
         run: |
           cd src
           python main_controller_v11_1.py
 
-      - name: 📤 Upload Logs (if any)
-        if: always()
+      # 5️⃣ Run AI Chain Orchestrator
+      - name: 🧠 Launch AI Chain Orchestrator
+        run: |
+          cd src
+          python ai_chain_orchestrator.py
+
+      # 6️⃣ Run Quantum Awareness Engine
+      - name: 🌌 Launch Quantum Awareness Engine
+        run: |
+          cd src
+          python quantum_awareness_engine.py
+
+      # 7️⃣ Upload Logs
+      - name: 📤 Upload Logs
         uses: actions/upload-artifact@v4
         with:
           name: sentinel-logs
           path: data/logs/
+
+      # 8️⃣ Upload Reports
+      - name: 📤 Upload Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-reports
+          path: data/reports/
