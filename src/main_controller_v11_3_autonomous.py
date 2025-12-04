@@ -1,162 +1,134 @@
 # =====================================================
-# Digital Sentinel v11.3 — MAIN CONTROLLER (Self-Healing)
-# Autonomous Vulnerability Hunter + AI Prioritization + Chain Recovery
+# DIGITAL SENTINEL v11.3 - AUTONOMOUS MAIN CONTROLLER
+# =====================================================
+# Core control module for the Sentinel Quantum Autonomous Cycle
+# Layers:
+# 1️⃣ Enumeration  (Subfinder / Amass / Assetfinder)
+# 2️⃣ HTTP Probing (HTTPX)
+# 3️⃣ Crawler & JS Parser (Katana)
+# 4️⃣ Vulnerability Scanner (Nuclei)
+# 5️⃣ AI Analysis Layer (Python models for classification)
+# 6️⃣ Autonomous Cycle (Cron + Watchdog + Discord Alerts)
 # =====================================================
 
 import os
 import time
-import json
-import traceback
 from datetime import datetime
 
+# Local modules
+from sentinel_scan_engine import SentinelScanEngine
+from sentinel_discord_reporter import DiscordReporter
 from ai_priority import analyze_vulnerability
 from chain_detector import detect_exploit_chains
-from sentinel_discord_reporter import send_chain_report, send_finding_report
-from sentinel_scan_engine import run_full_scan
-
-# =====================================================
-# CONFIGURATION
-# =====================================================
-
-TARGET_FILE = "data/targets/global_500_targets.txt"
-RESULT_DIR = "data/results"
-LOG_DIR = "data/logs"
-RECOVERY_LOG = os.path.join(LOG_DIR, "recovery.log")
-
-os.makedirs(LOG_DIR, exist_ok=True)
-os.makedirs(RESULT_DIR, exist_ok=True)
-
-MAIN_LOG = os.path.join(LOG_DIR, f"controller_{int(time.time())}.log")
-
-# =====================================================
-# LOGGING SYSTEM
-# =====================================================
-
-def log(msg: str, show=True):
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    line = f"[{timestamp}] {msg}"
-    if show:
-        print(line)
-    with open(MAIN_LOG, "a", encoding="utf-8") as f:
-        f.write(line + "\n")
 
 
-# =====================================================
-# TARGET LOADER
-# =====================================================
+class SentinelMainController:
+    def __init__(self, target_domain):
+        self.target_domain = target_domain
+        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.base_dir = os.path.join("data", "results", self.target_domain, self.timestamp)
+        os.makedirs(self.base_dir, exist_ok=True)
 
-def load_targets():
-    if not os.path.exists(TARGET_FILE):
-        log("❌ Target file not found!")
-        return []
-    with open(TARGET_FILE, "r", encoding="utf-8") as f:
-        domains = [line.strip() for line in f if line.strip()]
-    return domains
+        self.reporter = DiscordReporter()
+        self.findings = []
 
+    # -------------------------------------------------
+    # STEP 1–4 : Run scan engine (enumeration → nuclei)
+    # -------------------------------------------------
+    def run_autonomous_scan(self):
+        self.reporter.send_message(
+            "🚀 Sentinel Cycle Started",
+            f"Target: `{self.target_domain}` • Timestamp: `{self.timestamp}`"
+        )
+        engine = SentinelScanEngine(self.target_domain, output_dir=self.base_dir)
+        engine.run_full_scan()
+        self.reporter.send_message("🧩 Scan Engine Completed", "Enumeration → Vulnerability phases done.")
 
-# =====================================================
-# RESULT HANDLER
-# =====================================================
+    # -------------------------------------------------
+    # STEP 5 : AI analysis + prioritization
+    # -------------------------------------------------
+    def analyze_results(self):
+        print("[AI] Analyzing vulnerabilities with ML models...")
+        results_file = os.path.join(self.base_dir, "vulns_latest.txt")
+        if not os.path.exists(results_file):
+            print("[!] No Nuclei results found.")
+            return
 
-def save_result(domain, findings):
-    outf = os.path.join(RESULT_DIR, f"{domain}_findings.json")
-    with open(outf, "w", encoding="utf-8") as f:
-        json.dump(findings, f, indent=2)
-    log(f"📁 Saved results for {domain}")
+        with open(results_file, "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.readlines()
 
+        for line in lines:
+            if not line.strip():
+                continue
+            vuln_data = {"title": line.strip(), "description": "Auto-discovered issue"}
+            analyzed = analyze_vulnerability(vuln_data, self.target_domain)
+            self.findings.append(analyzed)
 
-# =====================================================
-# SELF-HEALING CONTROLLER
-# =====================================================
+        print(f"[AI] {len(self.findings)} findings processed.")
+        self.reporter.send_message("🤖 AI Analysis Complete", f"Processed {len(self.findings)} vulnerabilities.")
 
-def main_controller():
-    log("🚀 Starting Digital Sentinel v11.3 — Autonomous Recovery Mode")
+    # -------------------------------------------------
+    # STEP 6 : Correlate exploit chains
+    # -------------------------------------------------
+    def correlate_findings(self):
+        print("[CHAIN] Detecting possible exploit chains...")
+        chains = detect_exploit_chains(self.findings)
+        if not chains:
+            print("[CHAIN] No exploit chains detected.")
+            self.reporter.send_message("🔗 Exploit Chain Analysis", "No critical links found.")
+            return
 
-    retry_count = 0
-    max_retries = 3
-    cooldown_time = 300  # seconds (5 min)
-    success_cycles = 0
+        summary = "\n".join([f"- {c['chain_name']} (risk {c['combined_risk']})" for c in chains[:5]])
+        self.reporter.send_message("⚠️ Exploit Chain Detected", f"```\n{summary}\n```")
 
-    while True:
+    # -------------------------------------------------
+    # Save final report
+    # -------------------------------------------------
+    def save_final_report(self):
+        report_path = os.path.join(self.base_dir, "final_report.txt")
+        os.makedirs(os.path.dirname(report_path), exist_ok=True)
+
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write("=== DIGITAL SENTINEL FINAL REPORT ===\n")
+            f.write(f"Target: {self.target_domain}\n")
+            f.write(f"Timestamp: {self.timestamp}\n")
+            f.write(f"Total Findings: {len(self.findings)}\n\n")
+
+            for item in self.findings:
+                f.write(f"- {item['title']} [{item['severity']}] CVSS {item['cvss']}\n")
+                f.write(f"  → {item['ai_analysis']}\n\n")
+
+        print(f"[+] Final report saved → {report_path}")
+        self.reporter.send_report_summary(report_path)
+
+    # -------------------------------------------------
+    # Full autonomous cycle
+    # -------------------------------------------------
+    def run_full_cycle(self):
         try:
-            log(f"🧭 Initiating new scan cycle | Success cycles: {success_cycles} | Retries: {retry_count}")
+            print("===============================================")
+            print("🚀 Starting Sentinel Quantum Autonomous Cycle v11.3")
+            print("===============================================")
 
-            targets = load_targets()
-            if not targets:
-                log("⚠️ No targets found, sleeping 10 minutes...")
-                time.sleep(600)
-                continue
+            self.run_autonomous_scan()
+            self.analyze_results()
+            self.correlate_findings()
+            self.save_final_report()
 
-            all_findings = []
-
-            # STEP 1 — Scan All Targets
-            for domain in targets:
-                log(f"🟦 Scanning Target → {domain}")
-                results = run_full_scan(domain)
-
-                if not results:
-                    log(f"⚠️ No findings for {domain}")
-                    continue
-
-                # STEP 2 — AI Priority Analysis
-                enhanced = []
-                for f in results:
-                    try:
-                        enhanced.append(analyze_vulnerability(f, domain))
-                    except Exception as e:
-                        log(f"❌ AI Analysis Error for {domain}: {e}")
-
-                save_result(domain, enhanced)
-                all_findings.extend(enhanced)
-
-                # STEP 3 — Send High Severity Findings
-                for f in enhanced:
-                    sev = f.get("severity", "LOW").upper()
-                    if sev in ["CRITICAL", "HIGH", "MEDIUM"]:
-                        send_finding_report(f)
-
-            # STEP 4 — Detect Exploit Chains
-            log("🔍 Checking for exploit chains across all targets...")
-            chains = detect_exploit_chains(all_findings)
-
-            if chains:
-                log(f"🔥 {len(chains)} Exploit Chains Found.")
-                for ch in chains:
-                    send_chain_report(ch)
-            else:
-                log("ℹ️ No exploit chains found this round.")
-
-            # STEP 5 — Success Loop Management
-            success_cycles += 1
-            retry_count = 0
-            log(f"✅ Cycle {success_cycles} completed successfully.")
-            log("⏳ Sleeping 30 minutes before next cycle...")
-            time.sleep(1800)
-
+            print("✅ Cycle completed successfully.")
+            self.reporter.send_message("✅ Sentinel Cycle Finished", "All modules executed successfully.")
         except Exception as e:
-            retry_count += 1
-            log(f"❌ FATAL Controller Error: {e}")
-            traceback.print_exc()
-
-            # Write to recovery log
-            with open(RECOVERY_LOG, "a", encoding="utf-8") as f:
-                f.write(f"{datetime.utcnow()} — Cycle failure #{retry_count}: {e}\n")
-
-            if retry_count < max_retries:
-                log(f"♻️ Attempting recovery... Cooling {cooldown_time // 60} minutes.")
-                time.sleep(cooldown_time)
-                continue
-            else:
-                log("💀 MAX RETRIES REACHED — System entering deep cooldown mode.")
-                with open(RECOVERY_LOG, "a", encoding="utf-8") as f:
-                    f.write(f"{datetime.utcnow()} — SYSTEM STOP AFTER MAX RETRIES.\n")
-                time.sleep(3600)
-                retry_count = 0  # reset after long cooldown
+            err_msg = f"[!] Cycle crashed: {str(e)}"
+            print(err_msg)
+            self.reporter.send_message("💥 Sentinel Failure", err_msg)
+        finally:
+            print("Cycle cleanup complete.")
 
 
 # =====================================================
-# ENTRYPOINT
+# Entry point
 # =====================================================
-
 if __name__ == "__main__":
-    main_controller()
+    target = os.getenv("TARGET_DOMAIN", "example.com")
+    controller = SentinelMainController(target)
+    controller.run_full_cycle()
