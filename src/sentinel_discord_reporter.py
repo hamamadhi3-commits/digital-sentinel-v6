@@ -1,42 +1,43 @@
-import os
-import json
+# =====================================================
+# Digital Sentinel v11.3 - Discord Reporter
+# =====================================================
 import requests
+import json
+import os
+from datetime import datetime
 
-DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK", "").strip()
+class DiscordReporter:
+    def __init__(self, webhook_url=None):
+        self.webhook_url = webhook_url or os.getenv("DISCORD_WEBHOOK_URL")
 
-def send(msg):
-    if not DISCORD_WEBHOOK:
-        print("❌ No DISCORD_WEBHOOK!")
-        return
+    def send_message(self, title, description, color=0x00ffcc):
+        if not self.webhook_url:
+            print("[!] Discord webhook not configured. Skipping notification.")
+            return
 
-    try:
-        requests.post(
-            DISCORD_WEBHOOK,
-            data=json.dumps({"content": msg}),
-            headers={"Content-Type": "application/json"},
-            timeout=8
-        )
-        print("📤 Discord message sent.")
-    except Exception as e:
-        print(f"❌ Discord error: {e}")
+        payload = {
+            "embeds": [{
+                "title": f"🛰️ {title}",
+                "description": description,
+                "color": color,
+                "footer": {"text": f"Digital Sentinel • {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}"}
+            }]
+        }
 
-# Report for single finding
-def send_finding_report(f):
-    sev = f.get("severity", "UNKNOWN")
-    tgt = f.get("host", "unknown")
-    tpl = f.get("template-id", "N/A")
+        try:
+            response = requests.post(self.webhook_url, json=payload)
+            if response.status_code == 204:
+                print("[+] Discord notification sent successfully.")
+            else:
+                print(f"[!] Discord response: {response.status_code}")
+        except Exception as e:
+            print(f"[!] Discord send error: {e}")
 
-    msg = f"""
-🔎 **New Finding**
-🎯 Target: `{tgt}`
-⚠️ Severity: **{sev}**
-📄 Template: `{tpl}`
-"""
-    send(msg)
-
-# Chain report (Phase 9)
-def send_chain_report(chain):
-    text = "🔥 **EXPLOIT CHAIN DETECTED!**\n\n"
-    for c in chain:
-        text += f"➡️ {c.get('template-id')} (Severity: {c.get('severity')})\n"
-    send(text)
+    def send_report_summary(self, report_file):
+        """Send the content of a generated report to Discord."""
+        if not os.path.exists(report_file):
+            print(f"[!] Report file not found: {report_file}")
+            return
+        with open(report_file, "r", encoding="utf-8") as f:
+            content = f.read()[:1900]  # Discord limit 2000 chars
+        self.send_message("Scan Report Summary", f"```\n{content}\n```")
