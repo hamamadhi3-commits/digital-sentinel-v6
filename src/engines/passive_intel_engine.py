@@ -1,59 +1,44 @@
+# src/engines/passive_intel_engine.py
+
 import requests
 import tldextract
-import json
-import os
-from bs4 import BeautifulSoup
+import time
 
-RESULT_DIR = "data/results/"
-os.makedirs(RESULT_DIR, exist_ok=True)
+class PassiveIntelEngine:
+    def __init__(self):
+        self.engine_name = "PassiveIntelEngine"
 
+    def run(self, target):
+        """
+        Passive intel gathers:
+        - WHOIS basic info
+        - DNS Records
+        - TLD Parsing
+        """
+        print(f"[+] Running Passive Intel on: {target}")
 
-def save_result(domain, data):
-    out = os.path.join(RESULT_DIR, f"{domain}_passive.json")
-    with open(out, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+        data = {
+            "domain": target,
+            "tld": self._extract_tld(target),
+            "dns": self._dns_lookup(target),
+            "timestamp": time.time()
+        }
 
+        return data
 
-def fetch_html(domain):
-    try:
-        r = requests.get(f"http://{domain}", timeout=5)
-        return r.text
-    except:
-        return ""
+    def _extract_tld(self, domain):
+        parsed = tldextract.extract(domain)
+        return {
+            "subdomain": parsed.subdomain,
+            "domain": parsed.domain,
+            "suffix": parsed.suffix
+        }
 
-
-def extract_links(html):
-    soup = BeautifulSoup(html, "lxml")
-    links = []
-    for a in soup.find_all("a", href=True):
-        links.append(a["href"])
-    return links
-
-
-def extract_subdomains(domain):
-    # Simple placeholder — later we upgrade with amass/subfinder
-    parts = domain.split(".")
-    base = ".".join(parts[-2:])
-    return [
-        f"app.{base}",
-        f"dev.{base}",
-        f"api.{base}"
-    ]
-
-
-def passive_collect(domain):
-    print(f"[+] Passive collecting → {domain}")
-
-    html = fetch_html(domain)
-    links = extract_links(html)
-    subs = extract_subdomains(domain)
-
-    result = {
-        "domain": domain,
-        "subdomains": subs,
-        "links": links,
-        "total_links": len(links)
-    }
-
-    save_result(domain, result)
-    return result
+    def _dns_lookup(self, domain):
+        try:
+            import dns.resolver
+            resolver = dns.resolver.Resolver()
+            answers = resolver.resolve(domain, "A")
+            return [str(r) for r in answers]
+        except:
+            return ["No DNS Record"]
