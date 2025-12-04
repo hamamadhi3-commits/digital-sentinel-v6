@@ -1,148 +1,134 @@
-# src/main_controller_v11_4_quantum.py
-"""
-Digital Sentinel - Quantum Autonomous Controller v11.4
--------------------------------------------------------
-Main orchestrator for the Digital Sentinel engine.
-
-Responsibilities:
-1. Load target list from /data/targets.txt
-2. Dispatch enumeration, probing, crawling, scanning
-3. Integrate AI analysis and autonomous cycle
-4. Send results to Discord using sentinel_discord_reporter_v2.py
-5. Prevent duplicate reports
-"""
+# ============================================================
+# Digital Sentinel v6 - Main Quantum Controller v11.4
+# Author: Themoralhack & Manus AI
+# Mission: Autonomous scanning and reporting system for
+#          authorized bug bounty reconnaissance.
+# ============================================================
 
 import os
-import json
 import time
-import random
+import json
 import traceback
+
 from datetime import datetime
 
-from enumeration_engine import run_enumeration
-from probing_engine import run_probing
-from crawler_engine import run_crawler
-from vulnerability_scanner import run_scanner
-from ai_analyzer import run_ai_analysis
-from sentinel_discord_reporter_v2 import send_finding_report
+# === Internal modules ===
+from enumeration_engine import run_enumeration_batch
+from probing_engine import run_probing_batch
+from crawler_engine import run_crawling_batch
+from vulnerability_scanner import run_vulnerability_scan_batch
+from ai_analyzer import run_ai_analysis_batch
+
+# 🧠 Discord reporting system
+try:
+    from sentinel_discord_reporter_v2 import send_discord_report as send_finding_report
+except ImportError:
+    print("[⚠️ WARN] Discord reporter module not found; reporting disabled.")
+    send_finding_report = None
 
 
-# --------------------------------------------------------
-# Utility and log functions
-# --------------------------------------------------------
+# ------------------------------------------------------------
+# Environment setup
+# ------------------------------------------------------------
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 
-def log(msg):
-    timestamp = datetime.utcnow().strftime("[%Y-%m-%d %H:%M:%S]")
-    print(f"{timestamp} {msg}")
-
-
-def save_report(target, findings, folder="data/reports"):
-    """Save the full findings to a JSON file"""
-    os.makedirs(folder, exist_ok=True)
-    filename = os.path.join(folder, f"{target}_{int(time.time())}.json")
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(findings, f, indent=2)
-    return filename
+if not DISCORD_WEBHOOK_URL:
+    print("⚠️ Environment variable 'DISCORD_WEBHOOK_URL' not found!")
+    print("💡 Please add it in GitHub repository secrets as: DISCORD_WEBHOOK_URL")
+    print("Example: https://discord.com/api/webhooks/XXXXXXXXX/YYYYYYYYY")
+    time.sleep(2)
 
 
-# --------------------------------------------------------
-# Duplicate Checker
-# --------------------------------------------------------
+# ------------------------------------------------------------
+# Utility: load targets
+# ------------------------------------------------------------
+def load_targets(file_path="data/targets.txt"):
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"❌ Target list file not found: {file_path}")
 
-def is_duplicate(finding, history_dir="data/reports"):
-    """Check if this vulnerability was already reported before"""
-    import glob
-    sig = (finding.get("target", ""), finding.get("category", ""), finding.get("url", ""))
-    for file in glob.glob(os.path.join(history_dir, "*.json")):
-        try:
-            with open(file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                for old in data:
-                    if (
-                        old.get("target") == sig[0]
-                        and old.get("category") == sig[1]
-                        and old.get("url") == sig[2]
-                    ):
-                        return True
-        except:
-            continue
-    return False
+    with open(file_path, "r") as f:
+        targets = [line.strip() for line in f.readlines() if line.strip() and not line.startswith("#")]
+    return targets
 
 
-# --------------------------------------------------------
-# Core processing pipeline
-# --------------------------------------------------------
+# ------------------------------------------------------------
+# Quantum main logic
+# ------------------------------------------------------------
+def main_cycle():
+    print("\n🚀 [QUANTUM] Launching Main Quantum Controller v11.4")
+    print("===================================================")
 
-def process_target(target):
-    """Run the full Sentinel process on a single target"""
-    log(f"🚀 Starting scan for {target}")
+    start_time = datetime.now()
+    cycle_id = start_time.strftime("%Y%m%d_%H%M%S")
 
     try:
-        # 1️⃣ Subdomain Enumeration
-        subdomains = run_enumeration(target)
-        log(f"🔍 Found {len(subdomains)} subdomains for {target}")
+        # === Phase 1: Load targets ===
+        targets = load_targets()
+        print(f"[🎯] Loaded {len(targets)} targets for scanning.")
 
-        # 2️⃣ HTTP Probing
-        alive_hosts = run_probing(subdomains)
-        log(f"🌐 {len(alive_hosts)} active hosts after probing.")
+        # === Phase 2: Enumeration ===
+        enumeration_results = run_enumeration_batch(targets)
 
-        # 3️⃣ Crawling & JS Parsing
-        urls = run_crawler(alive_hosts)
-        log(f"🕷️ Crawled {len(urls)} URLs/endpoints.")
+        # === Phase 3: Probing ===
+        probing_results = run_probing_batch(enumeration_results)
 
-        # 4️⃣ Vulnerability Scanning
-        findings = run_scanner(urls)
-        log(f"💣 {len(findings)} potential vulnerabilities found.")
+        # === Phase 4: Crawling ===
+        crawling_results = run_crawling_batch(probing_results)
 
-        # 5️⃣ AI Analysis & Prioritization
-        analyzed = run_ai_analysis(findings)
-        log(f"🧠 AI classified and prioritized {len(analyzed)} findings.")
+        # === Phase 5: Vulnerability scanning ===
+        vuln_results = run_vulnerability_scan_batch(crawling_results)
 
-        # 6️⃣ Duplicate check + Discord Reporting
-        new_reports = []
-        for f in analyzed:
-            if is_duplicate(f):
-                log(f"⚠️ Duplicate finding detected for {f.get('target')} → skipped.")
-                continue
-            send_finding_report(f)
-            new_reports.append(f)
+        # === Phase 6: AI-based analysis ===
+        final_report = run_ai_analysis_batch(vuln_results)
 
-        # 7️⃣ Save report file
-        save_path = save_report(target, new_reports)
-        log(f"📁 Report saved: {save_path}")
+        # === Phase 7: Save report locally ===
+        os.makedirs("data/results/final_reports", exist_ok=True)
+        report_path = f"data/results/final_reports/report_{cycle_id}.json"
 
-        log(f"✅ Scan completed for {target}")
+        with open(report_path, "w") as f:
+            json.dump(final_report, f, indent=2)
+        print(f"[💾] Final report saved at: {report_path}")
+
+        # === Phase 8: Send report to Discord ===
+        if send_finding_report and DISCORD_WEBHOOK_URL:
+            print("[📡] Sending summary report to Discord channel...")
+            send_finding_report(final_report)
+            print("[✅] Report successfully sent to Discord.")
+        else:
+            print("[⚠️] Discord webhook not available, skipping report send.")
+
+        print("\n✨ [QUANTUM] Cycle completed successfully!")
+        duration = datetime.now() - start_time
+        print(f"⏱ Total runtime: {duration}")
 
     except Exception as e:
-        log(f"❌ Fatal error during processing {target}: {e}")
-        traceback.print_exc()
+        error_info = traceback.format_exc()
+        print(f"\n[💥 ERROR] Quantum cycle failed: {e}")
+        print(error_info)
+
+        # Save error log
+        os.makedirs("data/logs", exist_ok=True)
+        log_path = f"data/logs/error_{cycle_id}.log"
+        with open(log_path, "w") as f:
+            f.write(error_info)
+        print(f"[🧾] Error details saved at: {log_path}")
+
+        # Send to Discord if possible
+        if send_finding_report and DISCORD_WEBHOOK_URL:
+            send_finding_report({
+                "status": "failed",
+                "error": str(e),
+                "trace": error_info,
+                "timestamp": cycle_id
+            })
+            print("[⚠️] Error notification sent to Discord.")
 
 
-# --------------------------------------------------------
-# Autonomous cycle controller
-# --------------------------------------------------------
-
-def main():
-    """Main loop — iterate over all targets from data/targets.txt"""
-    log("🧠 Digital Sentinel Quantum Controller v11.4 initialized.")
-    targets_file = "data/targets.txt"
-
-    if not os.path.exists(targets_file):
-        log("❌ No target file found.")
-        return
-
-    with open(targets_file, "r", encoding="utf-8") as f:
-        targets = [t.strip() for t in f.readlines() if t.strip()]
-
-    log(f"🎯 Loaded {len(targets)} targets for scanning.")
-
-    for target in targets:
-        process_target(target)
-        # Random delay between cycles to mimic human behavior
-        time.sleep(random.uniform(5, 15))
-
-    log("🕒 Autonomous cycle finished. Waiting for next cron trigger.")
-
-
+# ------------------------------------------------------------
+# Entry point
+# ------------------------------------------------------------
 if __name__ == "__main__":
-    main()
+    print("[🧠] Digital Sentinel Quantum Autonomous Cycle")
+    print("[🔁] Initializing...")
+    time.sleep(1)
+    main_cycle()
