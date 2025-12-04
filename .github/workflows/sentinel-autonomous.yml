@@ -1,11 +1,14 @@
-name: 🚀 Sentinel Quantum Autonomous Cycle
+name: 🚀 Sentinel Quantum Autonomous Cycle v11.4
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 */6 * * *"  # ⏰ Run every 6 hours automatically
 
 jobs:
   run-quantum-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 180
 
     steps:
       - name: 📦 Checkout Repository
@@ -28,15 +31,40 @@ jobs:
           python generate_targets.py
           cd ..
           echo "✅ Targets saved in data/targets.txt"
-          cat data/targets.txt | head -n 10
+          head -n 10 data/targets.txt
 
-      - name: 🚀 Launch Main Controller with Recovery
+      - name: 🚀 Launch Main Controller with Recovery Cycle
         run: |
-          echo "========================================"
-          echo "🚀 LAUNCHING Sentinel Quantum Main Controller v11.3"
-          echo "========================================"
+          echo "=============================================="
+          echo "🚀 LAUNCHING Sentinel Quantum Main Controller v11.4"
+          echo "=============================================="
           cd src
-          python main_controller_v11_3_autonomous.py || exit 1
+          
+          ATTEMPT=1
+          MAX_ATTEMPTS=3
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+              echo "⚙️ Attempt $ATTEMPT of $MAX_ATTEMPTS..."
+              python main_controller_v11_3_autonomous.py && break
+              EXIT_CODE=$?
+              echo "⚠️ Attempt $ATTEMPT failed with code $EXIT_CODE"
+              ATTEMPT=$((ATTEMPT+1))
+              if [ $ATTEMPT -le $MAX_ATTEMPTS ]; then
+                  echo "🧠 Retrying after 30 seconds..."
+                  sleep 30
+              else
+                  echo "❌ All attempts failed."
+                  exit 1
+              fi
+          done
+
+      - name: 👁️ Watchdog Loop
+        if: always()
+        run: |
+          echo "🐺 Watchdog: monitoring for next autonomous run..."
+          echo "🕒 Waiting 10 minutes before auto-relaunch..."
+          sleep 600
+          echo "🔁 Relaunching new Sentinel cycle..."
+          gh workflow run "Sentinel Quantum Autonomous Cycle v11.4"
 
       - name: 📤 Upload Logs
         if: always()
@@ -53,4 +81,4 @@ jobs:
           path: data/reports/
 
       - name: ✅ Finalize Job
-        run: echo "✅ Sentinel Quantum Autonomous Cycle complete."
+        run: echo "✅ Sentinel Quantum Autonomous Cycle completed successfully."
