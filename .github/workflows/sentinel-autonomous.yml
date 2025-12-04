@@ -1,43 +1,33 @@
-name: "🚀 Sentinel Autonomous Cycle"
+name: 🚀 Sentinel Autonomous Cycle
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 */6 * * *"   # Run every 6 hours (never stops)
 
 jobs:
   run-scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 3600   # 60 hours max runtime (no auto cancel)
 
     steps:
-      - name: "Checkout Repository"
-        uses: actions/checkout@v4
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v3
 
-      - name: "Setup Python 3.11"
-        uses: actions/setup-python@v5
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v4
         with:
           python-version: "3.11"
 
-      - name: "Install Dependencies"
+      - name: 📦 Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: "Launch Main Controller"
+      - name: ▶️ Run Main Controller
         run: |
           cd src
-          python main_controller_v11_1.py
-        timeout-minutes: 1440   # 24 hours continuous scanning
+          python3 main_controller_v11_1.py
 
-      - name: "Upload Logs"
-        uses: actions/upload-artifact@v4
+      - name: 📤 Upload Results
+        uses: actions/upload-artifact@v3
         with:
-          name: sentinel-logs
-          path: data/logs/
-
-      - name: "Upload Reports"
-        uses: actions/upload-artifact@v4
-        with:
-          name: sentinel-reports
-          path: data/reports/
+          name: sentinel-results
+          path: data/results/
