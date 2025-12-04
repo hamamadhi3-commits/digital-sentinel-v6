@@ -1,100 +1,47 @@
+# src/engines/active_intel_engine.py
+
 import asyncio
 import socket
-import shodan
-import httpx
 import subprocess
+import httpx
 from bs4 import BeautifulSoup
 import tldextract
 import os
 
-SHODAN_KEY = os.getenv("SHODAN_API_KEY", "").strip()
 
-# -----------------------------------------------------
-# 1) FAST PORT SCAN (nmap)
-# -----------------------------------------------------
-def fast_portscan(domain):
-    try:
-        result = subprocess.check_output(
-            ["nmap", "-Pn", "-T4", "--top-ports", "50", domain],
-            stderr=subprocess.DEVNULL
-        ).decode()
-        return result
-    except:
-        return "nmap_failed"
+class ActiveIntelEngine:
 
+    def __init__(self):
+        self.engine_name = "ActiveIntel"
 
-# -----------------------------------------------------
-# 2) SHODAN LOOKUP
-# -----------------------------------------------------
-def shodan_lookup(ip):
-    if not SHODAN_KEY:
-        return {"shodan": "no_api_key"}
+    def fast_portscan(self, domain):
+        """
+        Simple fast nmap port scan
+        """
+        try:
+            cmd = ["nmap", "-T4", "-F", domain]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            return result.stdout
+        except Exception as e:
+            return f"[ERROR] Fast Port Scan Failed: {e}"
 
-    try:
-        api = shodan.Shodan(SHODAN_KEY)
-        res = api.host(ip)
-        return res
-    except:
-        return {"shodan": "lookup_failed"}
+    def http_probe(self, domain):
+        """
+        Simple http probe using httpx
+        """
+        try:
+            url = f"http://{domain}"
+            r = httpx.get(url, timeout=5)
+            return {"status": r.status_code, "headers": dict(r.headers)}
+        except Exception as e:
+            return {"error": str(e)}
 
-
-# -----------------------------------------------------
-# 3) HTTPX URL PROBE
-# -----------------------------------------------------
-async def probe_url(url):
-    try:
-        async with httpx.AsyncClient(timeout=5) as client:
-            r = await client.get(url)
-            return {
-                "url": url,
-                "status": r.status_code,
-                "title": BeautifulSoup(r.text, "lxml").title.string if r.text else ""
-            }
-    except:
-        return {"url": url, "status": "failed"}
-
-
-# -----------------------------------------------------
-# 4) Extract Root + build URLs
-# -----------------------------------------------------
-def build_urls(domain):
-    schema = ["http://", "https://"]
-    paths = ["", "/login", "/admin", "/portal", "/dashboard"]
-    urls = []
-
-    for s in schema:
-        for p in paths:
-            urls.append(s + domain + p)
-
-    return urls
-
-
-# -----------------------------------------------------
-# 5) ACTIVE INTEL ENGINE (Main)
-# -----------------------------------------------------
-async def active_intel(domain):
-    print(f"[ACTIVE] Running active intel for {domain}")
-
-    # Resolve IP
-    try:
-        ip = socket.gethostbyname(domain)
-    except:
-        ip = "resolve_failed"
-
-    # Portscan
-    ports = fast_portscan(domain)
-
-    # Shodan
-    shodan_res = shodan_lookup(ip)
-
-    # URL Probing
-    urls = build_urls(domain)
-    probed = await asyncio.gather(*(probe_url(u) for u in urls))
-
-    return {
-        "domain": domain,
-        "ip": ip,
-        "ports": ports,
-        "shodan": shodan_res,
-        "urls": probed
-    }
+    def run(self, target):
+        """
+        Main entry point
+        """
+        return {
+            "target": target,
+            "portscan": self.fast_portscan(target),
+            "http_probe": self.http_probe(target),
+        }
