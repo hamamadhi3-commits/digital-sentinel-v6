@@ -1,0 +1,108 @@
+name: 🧠 Digital Sentinel Quantum v12 – Intelligent Continuous Mode
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/20 * * * *"   # 🔁 هەموو 20 خولەک جارێک cycle نوێ دەستپێدەکات
+
+jobs:
+  run-intelligent-cycle:
+    name: ⚙️ Run Intelligent Continuous Sentinel
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      # ====================================================
+      # 1️⃣ Checkout repository
+      # ====================================================
+      - name: 📦 Checkout repository
+        uses: actions/checkout@v4
+
+      # ====================================================
+      # 2️⃣ Setup Python Environment
+      # ====================================================
+      - name: 🧠 Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ====================================================
+      # 3️⃣ Install Dependencies
+      # ====================================================
+      - name: ⚙️ Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt || echo "⚠️ No requirements.txt found"
+
+      # ====================================================
+      # 4️⃣ Launch Quantum Intelligent Controller
+      # ====================================================
+      - name: 🚀 Launch Main Quantum v12 Controller
+        run: |
+          echo "===================================================="
+          echo "🚀 Running Digital Sentinel Quantum v12 (Intelligent Continuous Mode)"
+          echo "===================================================="
+          python src/main_controller_v12_intelligent.py
+
+      # ====================================================
+      # 5️⃣ Upload Logs and Reports
+      # ====================================================
+      - name: 🧾 Upload Sentinel Reports & Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-v12-reports
+          path: |
+            data/results/final_reports/
+            logs/
+          retention-days: 5
+
+      # ====================================================
+      # 6️⃣ Dispatch Advanced Discord Notification
+      # ====================================================
+      - name: 📡 Dispatch AI Discord Report
+        if: always()
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "⚠️ Discord Webhook not configured!"
+          else
+            REPORT_FILE=$(ls -t data/results/final_reports/*.json | head -n 1)
+            echo "📨 Sending AI report: $REPORT_FILE"
+            TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+            PAYLOAD=$(jq -n --arg time "$TIME" --arg file "$REPORT_FILE" \
+            '{embeds: [{title: "🧠 Digital Sentinel Quantum v12 – Report Completed",
+                        description: "Cycle completed successfully.",
+                        color: 5814783,
+                        fields: [
+                          {"name": "🕒 Time", "value": $time, "inline": true},
+                          {"name": "📁 Report", "value": $file, "inline": false},
+                          {"name": "⚙️ Mode", "value": "Intelligent Continuous Scan", "inline": true}
+                        ],
+                        footer: {"text": "Digital Sentinel v12 – Adaptive AI Recon"}]}')
+            curl -H "Content-Type: application/json" \
+                 -X POST \
+                 -d "$PAYLOAD" \
+                 "$DISCORD_WEBHOOK_URL"
+          fi
+
+      # ====================================================
+      # 7️⃣ Adaptive Watchdog (Smart Relaunch)
+      # ====================================================
+      - name: 🐺 Adaptive Watchdog
+        if: always()
+        run: |
+          echo "🐺 [WATCHDOG] Intelligent Mode Active – evaluating next run..."
+          sleep 5
+          echo "📈 [ANALYZER] Checking if new targets exist..."
+          if [ -f "data/targets.txt" ]; then
+            COUNT=$(cat data/targets.txt | wc -l)
+            if [ "$COUNT" -gt 0 ]; then
+              echo "💡 [SCHEDULER] $COUNT targets found – scheduling next cycle..."
+            else
+              echo "⚠️ [SCHEDULER] No targets detected – awaiting next CRON wakeup."
+            fi
+          fi
