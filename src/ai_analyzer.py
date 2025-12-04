@@ -1,30 +1,47 @@
 # ============================================================
-# Digital Sentinel - AI Analysis & Prioritization Engine
+# Digital Sentinel v6 - AI Analyzer Engine
+# Author: Themoralhack & Manus AI
+# Mission: Summarize vulnerability results into actionable insights.
 # ============================================================
 
-def run_ai_analysis(findings):
-    """
-    Simulate AI-based severity classification and prioritization.
-    """
-    print(f"[AI] Analyzing {len(findings)} findings for severity patterns...")
+from collections import Counter
+from datetime import datetime
 
-    # Apply simple heuristic AI prioritization
-    for f in findings:
-        url = f.get("url", "")
-        desc = f.get("description", "").lower()
+def run_ai_analysis_batch(vuln_results):
+    """Aggregate and summarize vulnerability findings."""
+    print("[🧠] Running AI-style analysis phase...")
 
-        if "login" in url or "auth" in url:
-            f["severity"] = "critical"
-            f["ai_note"] = "High risk: authentication-related endpoint."
-        elif "api" in url:
-            f["severity"] = "high"
-            f["ai_note"] = "API endpoint exposure may leak sensitive data."
-        elif "staging" in url or "test" in url:
-            f["severity"] = "medium"
-            f["ai_note"] = "Testing environment vulnerability."
-        else:
-            f["severity"] = "low"
-            f["ai_note"] = "General or low-impact finding."
+    summary = Counter()
+    details = []
 
-    print(f"[AI] Prioritization complete. {len(findings)} findings analyzed.")
-    return findings
+    for item in vuln_results:
+        if item["findings"]:
+            for f in item["findings"]:
+                summary[f] += 1
+            details.append(item)
+
+    total_urls = len(vuln_results)
+    affected_urls = len(details)
+    most_common = summary.most_common(3)
+
+    report = {
+        "timestamp": datetime.now().isoformat(),
+        "total_urls_scanned": total_urls,
+        "affected_urls": affected_urls,
+        "vulnerability_summary": dict(summary),
+        "top_vuln_types": [v for v, _ in most_common],
+        "details": details,
+        "analysis_comment": generate_analysis_comment(summary)
+    }
+
+    print(f"[📊] AI analysis complete → {affected_urls}/{total_urls} URLs affected.")
+    return report
+
+
+def generate_analysis_comment(summary):
+    """Generate readable summary text."""
+    if not summary:
+        return "✅ No critical findings detected. All systems appear secure."
+    text = "🚨 Detected potential risks: "
+    parts = [f"{v}× {k.upper()}" for k, v in summary.items()]
+    return text + ", ".join(parts)
