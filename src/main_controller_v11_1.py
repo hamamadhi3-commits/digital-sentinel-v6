@@ -1,6 +1,6 @@
 # src/main_controller_v11_1.py
 # Central coordinator for the Digital Sentinel Autonomous System (v11.1)
-# ✅ Includes: PassiveIntelEngine + ActiveIntelEngine + Auto Logging
+# ✅ Fixed log path to be absolute (../data/logs/) for GitHub Actions
 
 import os
 import traceback
@@ -12,8 +12,9 @@ from engines.passive_intel_engine import PassiveIntelEngine
 
 
 def setup_logging():
-    """Create /data/logs/ folder and return an open log file."""
-    log_dir = os.path.join("data", "logs")
+    """Create ../data/logs folder and open log file in write mode."""
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    log_dir = os.path.join(base_dir, "data", "logs")
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(
         log_dir, f"scan_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
@@ -25,16 +26,15 @@ def setup_logging():
 def main():
     print("🚀 Launching Sentinel Autonomous Controller (v11.1)")
     try:
-        targets_file = os.path.join("data", "targets.txt")
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        targets_file = os.path.join(base_dir, "data", "targets.txt")
 
-        # Create targets file if not exists
         if not os.path.exists(targets_file):
             print("⚠️ No targets.txt found, creating default one...")
             os.makedirs(os.path.dirname(targets_file), exist_ok=True)
             with open(targets_file, "w") as f:
                 f.write("example.com\n")
 
-        # Read targets
         with open(targets_file, "r") as f:
             targets = [t.strip() for t in f.readlines() if t.strip()]
 
@@ -60,7 +60,6 @@ def main():
 
 
 if __name__ == "__main__":
-    # Redirect stdout to log file automatically
     with setup_logging() as log:
         with redirect_stdout(log):
             main()
