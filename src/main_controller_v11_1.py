@@ -1,61 +1,44 @@
 # src/main_controller_v11_1.py
+# Central coordinator for the Digital Sentinel autonomous scanning cycle
 
-import json
-import time
 import os
+import traceback
 from engines.active_intel_engine import ActiveIntelEngine
 from engines.passive_intel_engine import PassiveIntelEngine
 
+def main():
+    print("🚀 Launching Sentinel Autonomous Controller (v11.1)")
+    try:
+        targets_file = os.path.join("data", "targets", "targets.txt")
+        if not os.path.exists(targets_file):
+            print("⚠️ No targets.txt found, creating default one...")
+            os.makedirs(os.path.dirname(targets_file), exist_ok=True)
+            with open(targets_file, "w") as f:
+                f.write("example.com\n")
 
-class DigitalSentinelController:
+        with open(targets_file, "r") as f:
+            targets = [t.strip() for t in f.readlines() if t.strip()]
 
-    def __init__(self):
-        self.active_engine = ActiveIntelEngine()
-        self.passive_engine = PassiveIntelEngine()
+        if not targets:
+            print("⚠️ No targets to scan. Exiting.")
+            return
 
-    def load_targets(self):
-        path = "../data/targets/targets.txt"
-        if not os.path.exists(path):
-            raise FileNotFoundError("targets.txt NOT FOUND")
-
-        with open(path, "r") as f:
-            targets = [x.strip() for x in f.readlines() if x.strip()]
-
-        return targets
-
-    def run(self):
-        print("\n[ SENTINEL V6 STARTED ]\n")
-        targets = self.load_targets()
+        passive_engine = PassiveIntelEngine()
+        active_engine = ActiveIntelEngine()
 
         for target in targets:
-            print(f"\n=== Processing Target: {target} ===")
+            print(f"\n===== 🎯 TARGET: {target} =====")
+            print("🔹 Passive Recon:")
+            passive_engine.run(target)
 
-            passive = self.passive_engine.run(target)
-            active = self.active_engine.run(target)
+            print("🔹 Active Recon:")
+            active_engine.run(target)
 
-            result = {
-                "target": target,
-                "passive": passive,
-                "active": active,
-                "timestamp": time.time()
-            }
+        print("\n✅ Scan completed successfully.")
 
-            self.save_result(target, result)
-
-        print("\n[ COMPLETED ALL TARGETS ]\n")
-
-    def save_result(self, target, data):
-        folder = "../data/results/"
-        os.makedirs(folder, exist_ok=True)
-
-        filename = f"{folder}/{target.replace('.', '_')}.json"
-
-        with open(filename, "w") as f:
-            json.dump(data, f, indent=4)
-
-        print(f"[ SAVED ] {filename}")
-
+    except Exception as e:
+        print("❌ Controller Error:", str(e))
+        traceback.print_exc()
 
 if __name__ == "__main__":
-    controller = DigitalSentinelController()
-    controller.run()
+    main()
