@@ -1,9 +1,9 @@
-name: 🚀 Sentinel Quantum Autonomous Recovery Cycle (v11.3)
+name: 🚀 Sentinel Quantum Autonomous Recovery Cycle (v11.3 Fixed)
 
 on:
   workflow_dispatch:
   schedule:
-    # بەخۆکار هەر ٦ کاتژمێر جارێک cycle نوێ دەستپێدەکات
+    # هەر ٦ کاتژمێر جارێک cycle نوێ دەستپێدەکات
     - cron: "0 */6 * * *"
 
 jobs:
@@ -14,7 +14,7 @@ jobs:
     env:
       PYTHONUNBUFFERED: 1
       MAX_RETRIES: 3
-      COOLDOWN_SECONDS: 300  # 5 خولەک بۆ بەستەنی دووبارەی cycle
+      COOLDOWN_SECONDS: 300  # ٥ خولەک بۆ بەستەنی دووبارەی cycle
 
     steps:
       - name: 🧩 Set up job
@@ -44,7 +44,7 @@ jobs:
           until [ $RETRIES -ge $MAX_RETRIES ]
           do
               echo "▶️ Attempt $((RETRIES+1)) of $MAX_RETRIES..."
-              python main_controller_v11_2_debug.py && break
+              python main_controller_v11_3_autonomous.py && break
               
               EXIT_CODE=$?
               echo "❌ Cycle failed with exit code: $EXIT_CODE"
