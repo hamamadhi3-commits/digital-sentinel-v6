@@ -3,53 +3,58 @@ name: 🚀 Sentinel Quantum Autonomous Cycle v11.4
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */6 * * *"  # ⏰ Run every 6 hours automatically
+    - cron: "0 */6 * * *"  # ⏰ کارکردن بەخۆکار هەموو 6 کاتژمێر جارێک
 
 jobs:
-  run-quantum-scan:
+  quantum-cycle:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
 
     steps:
+      # 1️⃣ چێک‌ئاووتی پڕۆژە
       - name: 📦 Checkout Repository
         uses: actions/checkout@v4
 
+      # 2️⃣ دامەزراندنی پایتۆن
       - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
+      # 3️⃣ دامەزراندنی پەیوەندیدارەکان
       - name: 📚 Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4
+          pip install requests aiohttp beautifulsoup4 lxml python-nmap shodan dnspython httpx trio numpy pandas scikit-learn torch transformers sentencepiece tldextract
 
-      - name: ⚙️ Generate Authorized Targets
+      # 4️⃣ پێدانی لیستی تارگێت
+      - name: 🧠 Generate 500 Authorized Targets
         run: |
-          echo "🧠 Generating 500 authorized bug bounty targets..."
+          echo "🔄 Generating global_500_targets.txt..."
+          mkdir -p data/targets
           cd src
           python generate_targets.py
           cd ..
-          echo "✅ Targets saved in data/targets.txt"
-          head -n 10 data/targets.txt
+          echo "✅ Target list ready at data/targets/global_500_targets.txt"
 
-      - name: 🚀 Launch Main Controller with Recovery Cycle
+      # 5️⃣ دەستپێکردنی کۆنتڕۆڵەری سەرەکی
+      - name: 🚀 Launch Main Quantum Controller
         run: |
           echo "=============================================="
-          echo "🚀 LAUNCHING Sentinel Quantum Main Controller v11.4"
+          echo "⚡ Running Digital Sentinel Quantum v11.4"
           echo "=============================================="
           cd src
-          
+
           ATTEMPT=1
           MAX_ATTEMPTS=3
           while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-              echo "⚙️ Attempt $ATTEMPT of $MAX_ATTEMPTS..."
-              python main_controller_v11_3_autonomous.py && break
+              echo "▶️ Attempt $ATTEMPT of $MAX_ATTEMPTS..."
+              python main_controller_v11_4_quantum.py && break
               EXIT_CODE=$?
               echo "⚠️ Attempt $ATTEMPT failed with code $EXIT_CODE"
               ATTEMPT=$((ATTEMPT+1))
               if [ $ATTEMPT -le $MAX_ATTEMPTS ]; then
-                  echo "🧠 Retrying after 30 seconds..."
+                  echo "♻️ Retrying in 30 seconds..."
                   sleep 30
               else
                   echo "❌ All attempts failed."
@@ -57,15 +62,15 @@ jobs:
               fi
           done
 
-      - name: 👁️ Watchdog Loop
+      # 6️⃣ وۆچ‌دۆگ بۆ بەردەوامی کارکردن
+      - name: 🐺 Watchdog Auto-Loop
         if: always()
         run: |
-          echo "🐺 Watchdog: monitoring for next autonomous run..."
-          echo "🕒 Waiting 10 minutes before auto-relaunch..."
+          echo "🐺 Watchdog is active – Sentinel will relaunch in 10 minutes"
           sleep 600
-          echo "🔁 Relaunching new Sentinel cycle..."
           gh workflow run "Sentinel Quantum Autonomous Cycle v11.4"
 
+      # 7️⃣ بارکردنی لاگ
       - name: 📤 Upload Logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -73,6 +78,7 @@ jobs:
           name: sentinel-logs
           path: data/logs/
 
+      # 8️⃣ بارکردنی ڕاپۆرتەکان
       - name: 📑 Upload Reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -80,5 +86,6 @@ jobs:
           name: sentinel-reports
           path: data/reports/
 
-      - name: ✅ Finalize Job
-        run: echo "✅ Sentinel Quantum Autonomous Cycle completed successfully."
+      # 9️⃣ تەواوکردنی سایکل
+      - name: ✅ Finalize Cycle
+        run: echo "✅ Quantum Autonomous Cycle completed successfully."
