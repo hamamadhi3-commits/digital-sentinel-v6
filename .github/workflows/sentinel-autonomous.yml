@@ -1,91 +1,90 @@
-name: 🚀 Sentinel Quantum Autonomous Cycle v11.4
+name: 🛰️ Digital Sentinel Autonomous Cycle
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */6 * * *"  # ⏰ کارکردن بەخۆکار هەموو 6 کاتژمێر جارێک
+    - cron: "*/30 * * * *"   # ⏱️ رەوانەکردنەوەی ئۆتۆماتیکی هەموو 30 خولەک جارێک
 
 jobs:
-  quantum-cycle:
+  run-sentinel:
+    name: ⚙️ Launch Quantum Sentinel Autonomous Mode
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+
+    env:
+      # 🧩 Secrets (Loaded from GitHub Repository Secrets)
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
-      # 1️⃣ چێک‌ئاووتی پڕۆژە
-      - name: 📦 Checkout Repository
+      # ====================================================
+      # 1️⃣ Checkout source code
+      # ====================================================
+      - name: 📦 Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ دامەزراندنی پایتۆن
-      - name: 🐍 Setup Python
+      # ====================================================
+      # 2️⃣ Setup Python environment
+      # ====================================================
+      - name: 🧠 Setup Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      # 3️⃣ دامەزراندنی پەیوەندیدارەکان
-      - name: 📚 Install Dependencies
+      # ====================================================
+      # 3️⃣ Install dependencies
+      # ====================================================
+      - name: ⚙️ Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests aiohttp beautifulsoup4 lxml python-nmap shodan dnspython httpx trio numpy pandas scikit-learn torch transformers sentencepiece tldextract
+          pip install -r requirements.txt || echo "⚠️ No requirements.txt found, skipping."
 
-      # 4️⃣ پێدانی لیستی تارگێت
-      - name: 🧠 Generate 500 Authorized Targets
-        run: |
-          echo "🔄 Generating global_500_targets.txt..."
-          mkdir -p data/targets
-          cd src
-          python generate_targets.py
-          cd ..
-          echo "✅ Target list ready at data/targets/global_500_targets.txt"
-
-      # 5️⃣ دەستپێکردنی کۆنتڕۆڵەری سەرەکی
+      # ====================================================
+      # 4️⃣ Launch Main Quantum Controller
+      # ====================================================
       - name: 🚀 Launch Main Quantum Controller
         run: |
           echo "=============================================="
-          echo "⚡ Running Digital Sentinel Quantum v11.4"
+          echo "🚀 Running Digital Sentinel Quantum v11.4"
           echo "=============================================="
-          cd src
+          python src/main_controller_v11_4_quantum.py
 
-          ATTEMPT=1
-          MAX_ATTEMPTS=3
-          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-              echo "▶️ Attempt $ATTEMPT of $MAX_ATTEMPTS..."
-              python main_controller_v11_4_quantum.py && break
-              EXIT_CODE=$?
-              echo "⚠️ Attempt $ATTEMPT failed with code $EXIT_CODE"
-              ATTEMPT=$((ATTEMPT+1))
-              if [ $ATTEMPT -le $MAX_ATTEMPTS ]; then
-                  echo "♻️ Retrying in 30 seconds..."
-                  sleep 30
-              else
-                  echo "❌ All attempts failed."
-                  exit 1
-              fi
-          done
-
-      # 6️⃣ وۆچ‌دۆگ بۆ بەردەوامی کارکردن
-      - name: 🐺 Watchdog Auto-Loop
-        if: always()
-        run: |
-          echo "🐺 Watchdog is active – Sentinel will relaunch in 10 minutes"
-          sleep 600
-          gh workflow run "Sentinel Quantum Autonomous Cycle v11.4"
-
-      # 7️⃣ بارکردنی لاگ
-      - name: 📤 Upload Logs
+      # ====================================================
+      # 5️⃣ Upload Logs
+      # ====================================================
+      - name: 🧾 Upload Sentinel Logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sentinel-logs
-          path: data/logs/
+          path: |
+            data/results/final_reports/
+            logs/
+          retention-days: 3
 
-      # 8️⃣ بارکردنی ڕاپۆرتەکان
-      - name: 📑 Upload Reports
+      # ====================================================
+      # 6️⃣ Discord Notification
+      # ====================================================
+      - name: 📡 Dispatch Discord Report
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: sentinel-reports
-          path: data/reports/
+        run: |
+          echo "=============================================="
+          echo "📡 Preparing Discord report dispatch..."
+          echo "=============================================="
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "⚠️ Discord Webhook not configured. Skipping report dispatch."
+          else
+            REPORT_FILE=$(ls -t data/results/final_reports/*.json | head -n 1)
+            echo "📨 Sending report: $REPORT_FILE"
+            curl -H "Content-Type: application/json" \
+                 -X POST \
+                 -d "{\"content\": \"📊 **Digital Sentinel Quantum Report Completed!**\n🕒 Cycle finished successfully.\n📁 Report: $REPORT_FILE\"}" \
+                 "$DISCORD_WEBHOOK_URL"
+          fi
 
-      # 9️⃣ تەواوکردنی سایکل
-      - name: ✅ Finalize Cycle
-        run: echo "✅ Quantum Autonomous Cycle completed successfully."
+      # ====================================================
+      # 7️⃣ Watchdog Loop
+      # ====================================================
+      - name: 🐺 Watchdog Auto-Loop
+        if: always()
+        run: |
+          echo "🐺 Watchdog is active – Sentinel will relaunch in 30 minutes"
