@@ -1,41 +1,84 @@
-# src/sentinel_discord_reporter_v2.py
-import requests
-import json
+# ============================================================
+# Digital Sentinel - Discord Vulnerability Reporter v2
+# ============================================================
+
 import os
+import json
+import requests
 from datetime import datetime
 
-DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
+# ------------------------------------------------------------
+# Configuration
+# ------------------------------------------------------------
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "").strip()
 
-def send_finding_report(finding):
-    """Send a vulnerability report to Discord with full Bugcrowd-style format."""
-    if not DISCORD_WEBHOOK:
-        print("⚠️ No Discord webhook configured.")
+if not DISCORD_WEBHOOK_URL:
+    print("[⚠️] No Discord Webhook URL found in environment variable 'DISCORD_WEBHOOK_URL'!")
+    print("[💡] Please add it in GitHub repository secrets as: DISCORD_WEBHOOK_URL")
+else:
+    print("[🔗] Discord Webhook detected successfully.")
+
+
+# ------------------------------------------------------------
+# Helper Function: Format Report
+# ------------------------------------------------------------
+def format_discord_message(finding):
+    """
+    Format a finding into a Discord message payload (Embed style)
+    """
+
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    embed = {
+        "title": f"🛡️ New Vulnerability Discovered on {finding.get('target', 'Unknown Target')}",
+        "color": 15158332,  # red color
+        "fields": [
+            {"name": "🎯 Target", "value": finding.get("target", "Unknown"), "inline": False},
+            {"name": "📁 Category", "value": finding.get("category", "N/A"), "inline": True},
+            {"name": "⚙️ Severity", "value": finding.get("severity", "N/A"), "inline": True},
+            {"name": "🌐 URL", "value": finding.get("url", "N/A"), "inline": False},
+            {"name": "🧠 AI Note", "value": finding.get("ai_note", "N/A"), "inline": False},
+            {"name": "🧩 Description", "value": finding.get("description", "No details provided."), "inline": False},
+            {"name": "💣 Proof of Concept", "value": f"```bash\n{finding.get('poc', 'N/A')}\n```", "inline": False},
+            {"name": "🕓 Detected At", "value": timestamp, "inline": False}
+        ],
+        "footer": {"text": "Digital Sentinel v6 • Quantum Cycle"},
+    }
+
+    payload = {"embeds": [embed]}
+    return payload
+
+
+# ------------------------------------------------------------
+# Main Reporter Function
+# ------------------------------------------------------------
+def send_discord_report(findings):
+    """
+    Send all vulnerability findings to Discord in rich embed format.
+    """
+
+    if not findings:
+        print("[ℹ️] No findings to report.")
         return
 
-    title = finding.get("title", "Untitled Vulnerability")
-    target = finding.get("target", "Unknown Target")
-    vrt_category = finding.get("category", "Unspecified")
-    url = finding.get("url", "N/A")
-    severity = finding.get("severity", "Unrated")
-    description = finding.get("description", "No description available.")
-    poc = finding.get("poc", "Auto-captured proof of concept (available in logs).")
+    if not DISCORD_WEBHOOK_URL:
+        print("[🚫] Cannot send to Discord - webhook not configured.")
+        return
 
-    message = (
-        f"🧠 **New Vulnerability Found!**\n"
-        f"**1️⃣ Title:** {title}\n"
-        f"**2️⃣ Target:** {target}\n"
-        f"**3️⃣ Technical Severity (VRT):** {vrt_category} ({severity})\n"
-        f"**4️⃣ URL:** {url}\n"
-        f"**5️⃣ Description:** {description[:800]}...\n"
-        f"**6️⃣ Proof of Concept:** {poc}\n"
-        f"----------------------------------\n"
-        f"🕒 Detected at: {datetime.utcnow().isoformat()} UTC\n"
-        f"🔗 Stored securely in Sentinel archive.\n"
-    )
+    print(f"[📡] Sending {len(findings)} findings to Discord...")
 
-    try:
-        payload = {"content": message}
-        requests.post(DISCORD_WEBHOOK, data=json.dumps(payload), headers={"Content-Type": "application/json"})
-        print(f"✅ Discord report sent for {target}")
-    except Exception as e:
-        print(f"❌ Discord send failed: {e}")
+    for finding in findings:
+        try:
+            payload = format_discord_message(finding)
+            response = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
+
+            if response.status_code == 204:
+                print(f"[✅] Report sent successfully for {finding.get('target')}")
+            else:
+                print(f"[⚠️] Failed to send report for {finding.get('target')} - "
+                      f"HTTP {response.status_code}: {response.text}")
+
+        except Exception as e:
+            print(f"[❌] Error sending report: {e}")
+
+    print("[🏁] Discord reporting cycle completed.")
