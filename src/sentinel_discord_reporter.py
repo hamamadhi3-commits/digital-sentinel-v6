@@ -1,43 +1,35 @@
-# =====================================================
-# Digital Sentinel v11.3 - Discord Reporter
-# =====================================================
 import requests
 import json
 import os
-from datetime import datetime
 
-class DiscordReporter:
-    def __init__(self, webhook_url=None):
-        self.webhook_url = webhook_url or os.getenv("DISCORD_WEBHOOK_URL")
+DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 
-    def send_message(self, title, description, color=0x00ffcc):
-        if not self.webhook_url:
-            print("[!] Discord webhook not configured. Skipping notification.")
-            return
+def send_finding_report(finding):
+    if not DISCORD_WEBHOOK:
+        print("⚠️ No Discord webhook configured.")
+        return
 
-        payload = {
-            "embeds": [{
-                "title": f"🛰️ {title}",
-                "description": description,
-                "color": color,
-                "footer": {"text": f"Digital Sentinel • {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}"}
-            }]
-        }
+    # Map finding fields to Bugcrowd/HackerOne style
+    report_data = {
+        "title": finding.get("title", "Untitled Vulnerability"),
+        "target": finding.get("target", "Unknown Target"),
+        "vrt_category": finding.get("category", "Unspecified"),
+        "url": finding.get("url", "N/A"),
+        "severity": finding.get("severity", "Unrated"),
+        "description": finding.get("description", "No description available.")
+    }
 
-        try:
-            response = requests.post(self.webhook_url, json=payload)
-            if response.status_code == 204:
-                print("[+] Discord notification sent successfully.")
-            else:
-                print(f"[!] Discord response: {response.status_code}")
-        except Exception as e:
-            print(f"[!] Discord send error: {e}")
+    message = (
+        f"🧠 **New Vulnerability Found!**\n"
+        f"**1️⃣ Title:** {report_data['title']}\n"
+        f"**2️⃣ Target:** {report_data['target']}\n"
+        f"**3️⃣ Technical Severity (VRT):** {report_data['vrt_category']} ({report_data['severity']})\n"
+        f"**4️⃣ URL:** {report_data['url']}\n"
+        f"**5️⃣ Description:** {report_data['description'][:800]}...\n"
+        f"**6️⃣ Proof of Concept:** Auto-collected POC attached in system logs.\n"
+        f"----------------------------------\n"
+        f"🔗 Saved in Sentinel DB for tracking.\n"
+    )
 
-    def send_report_summary(self, report_file):
-        """Send the content of a generated report to Discord."""
-        if not os.path.exists(report_file):
-            print(f"[!] Report file not found: {report_file}")
-            return
-        with open(report_file, "r", encoding="utf-8") as f:
-            content = f.read()[:1900]  # Discord limit 2000 chars
-        self.send_message("Scan Report Summary", f"```\n{content}\n```")
+    payload = {"content": message}
+    requests.post(DISCORD_WEBHOOK, data=json.dumps(payload), headers={"Content-Type": "application/json"})
