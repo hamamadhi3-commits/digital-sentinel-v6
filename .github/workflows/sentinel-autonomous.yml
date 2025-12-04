@@ -1,48 +1,43 @@
-name: 🚀 Sentinel Autonomous Cycle
+name: "🚀 Sentinel Autonomous Cycle"
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 */6 * * *"   # Run every 6 hours (never stops)
 
 jobs:
   run-scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 3600   # 60 hours max runtime (no auto cancel)
 
     steps:
-    # 1) Checkout repo
-    - name: 📦 Checkout Repository
-      uses: actions/checkout@v4
+      - name: "Checkout Repository"
+        uses: actions/checkout@v4
 
-    # 2) Setup Python
-    - name: 🐍 Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      - name: "Setup Python 3.11"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-    # 3) Install Dependencies
-    - name: 📚 Install Dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: "Install Dependencies"
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-    # 4) Run Main Controller 100% CORRECT
-    - name: 🚀 Launch Main Controller
-      run: |
-        cd src
-        python main_controller_v11_1.py
+      - name: "Launch Main Controller"
+        run: |
+          cd src
+          python main_controller_v11_1.py
+        timeout-minutes: 1440   # 24 hours continuous scanning
 
-    # 5) Upload Logs
-    - name: 📤 Upload Logs
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: sentinel-logs
-        path: data/logs/
+      - name: "Upload Logs"
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-logs
+          path: data/logs/
 
-    # 6) Upload Reports
-    - name: 📤 Upload Reports
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: sentinel-reports
-        path: data/reports/
+      - name: "Upload Reports"
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-reports
+          path: data/reports/
