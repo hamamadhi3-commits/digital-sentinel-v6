@@ -1,65 +1,168 @@
-# src/main_controller_v11_1.py
-# Central coordinator for the Digital Sentinel Autonomous System (v11.1)
-# ✅ Fixed log path to be absolute (../data/logs/) for GitHub Actions
+# ---------------------------------------------------------
+# Digital Sentinel v11.1 — MAIN CONTROLLER
+# Autonomous Vulnerability Hunter + AI Prioritization + Chains
+# ---------------------------------------------------------
 
 import os
+import time
+import json
 import traceback
-import datetime
-from contextlib import redirect_stdout
+from datetime import datetime
 
-from engines.active_intel_engine import ActiveIntelEngine
-from engines.passive_intel_engine import PassiveIntelEngine
-
-
-def setup_logging():
-    """Create ../data/logs folder and open log file in write mode."""
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    log_dir = os.path.join(base_dir, "data", "logs")
-    os.makedirs(log_dir, exist_ok=True)
-    log_file = os.path.join(
-        log_dir, f"scan_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-    )
-    print(f"🧾 Log file created: {log_file}")
-    return open(log_file, "w", encoding="utf-8")
+# === Imports for AI Modules ===
+from ai_priority import analyze_vulnerability
+from chain_detector import detect_exploit_chains
+from sentinel_discord_reporter import send_chain_report, send_finding_report
+from sentinel_scan_engine import run_full_scan
+from quantum_awareness_engine import QuantumAwarenessEngine  # ⬅️ Added for STEP 10 integration
 
 
-def main():
-    print("🚀 Launching Sentinel Autonomous Controller (v11.1)")
-    try:
-        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        targets_file = os.path.join(base_dir, "data", "targets.txt")
+# ===========================
+#  CONFIGURATION
+# ===========================
 
-        if not os.path.exists(targets_file):
-            print("⚠️ No targets.txt found, creating default one...")
-            os.makedirs(os.path.dirname(targets_file), exist_ok=True)
-            with open(targets_file, "w") as f:
-                f.write("example.com\n")
+TARGET_FILE = "data/targets/global_500_targets.txt"
+RESULT_DIR = "data/results"
+LOG_DIR = "data/logs"
 
-        with open(targets_file, "r") as f:
-            targets = [t.strip() for t in f.readlines() if t.strip()]
+os.makedirs(LOG_DIR, exist_ok=True)
+os.makedirs(RESULT_DIR, exist_ok=True)
 
-        if not targets:
-            print("⚠️ No targets to scan.")
-            return
+MAIN_LOG = os.path.join(LOG_DIR, f"controller_{int(time.time())}.log")
 
-        for target in targets:
-            print(f"\n===== 🎯 TARGET: {target} =====")
-            print("◆ Passive Recon:")
-            passive = PassiveIntelEngine()
-            passive.run(target)
 
-            print("◆ Active Recon:")
-            active = ActiveIntelEngine()
-            active.run(target)
+# ===========================
+#  LOGGING SYSTEM
+# ===========================
 
-        print("\n✅ Scan completed successfully.\n")
+def log(msg):
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{timestamp}] {msg}"
+    print(line)
+    with open(MAIN_LOG, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
 
-    except Exception as e:
-        print(f"❌ Error in main controller: {e}")
-        traceback.print_exc()
 
+# ===========================
+#  LOAD TARGETS
+# ===========================
+
+def load_targets():
+    if not os.path.exists(TARGET_FILE):
+        log("❌ Target file not found!")
+        return []
+
+    with open(TARGET_FILE, "r", encoding="utf-8") as f:
+        domains = [l.strip() for l in f if l.strip()]
+
+    return domains
+
+
+# ===========================
+#  SAVE FINDINGS
+# ===========================
+
+def save_result(domain, findings):
+    outf = os.path.join(RESULT_DIR, f"{domain}_findings.json")
+    with open(outf, "w", encoding="utf-8") as f:
+        json.dump(findings, f, indent=2)
+    log(f"📁 Saved results for {domain}")
+
+
+# ===========================
+#  MAIN CONTROLLER
+# ===========================
+
+def main_controller():
+    log("🚀 Starting Digital Sentinel v11.1 (Autonomous Mode)")
+
+    while True:
+        try:
+            # ------------------------------------------
+            # STEP 1 — Load targets
+            # ------------------------------------------
+            targets = load_targets()
+            log(f"🎯 Loaded {len(targets)} targets.")
+
+            if not targets:
+                log("⚠️ No targets found. Sleeping 10 minutes...")
+                time.sleep(600)
+                continue
+
+            # ------------------------------------------
+            # STEP 2 — Loop through each domain
+            # ------------------------------------------
+            all_findings = []
+
+            for domain in targets:
+                log(f"🟦 Processing target → {domain}")
+
+                # Run Scan
+                results = run_full_scan(domain)
+
+                if not results:
+                    log(f"⚠️ No findings for {domain}")
+                    continue
+
+                # ------------------------------------------
+                # STEP 3 — AI PRIORITY ENGINE (قۆناغ ٨)
+                # ------------------------------------------
+                enhanced = []
+                for f in results:
+                    enhanced.append(analyze_vulnerability(f, domain))
+
+                save_result(domain, enhanced)
+                all_findings.extend(enhanced)
+
+                # ------------------------------------------
+                # STEP 4 — SEND SINGLE FINDING REPORTS
+                # Only CRITICAL / HIGH / MEDIUM
+                # ------------------------------------------
+                for f in enhanced:
+                    if f.get("cvss", 0) >= 5:  # MEDIUM+
+                        send_finding_report(f)
+
+            # --------------------------------------------------
+            # STEP 5 — CHAIN DETECTION ENGINE (قۆناغ ٩)
+            # --------------------------------------------------
+            log("🔍 Checking for exploit-chains...")
+
+            chains = detect_exploit_chains(all_findings)
+
+            if chains:
+                log(f"🔥 {len(chains)} exploit chains detected.")
+                for ch in chains:
+                    send_chain_report(ch)
+            else:
+                log("ℹ️ No exploit chains found this round.")
+
+            # --------------------------------------------------
+            # STEP 6 — QUANTUM AWARENESS MODE (قۆناغ ١٠)
+            # --------------------------------------------------
+            log("🌌 Activating Quantum Awareness Mode...")
+            try:
+                quantum = QuantumAwarenessEngine(max_agents=10)
+                quantum.run_quantum_cycle()
+            except Exception as qe:
+                log(f"⚠️ Quantum Awareness Engine Error: {qe}")
+
+            # --------------------------------------------------
+            # STEP 7 — AUTONOMOUS LOOP
+            # --------------------------------------------------
+            log("⏳ Sleeping 30 minutes before next cycle...")
+            time.sleep(1800)
+
+        except Exception as e:
+            log(f"❌ Fatal Controller Error: {e}")
+            traceback.print_exc()
+
+            log("♻️ Restarting Controller in 60 seconds...")
+            time.sleep(60)
+
+
+# ===========================
+#  ENTRYPOINT
+# ===========================
 
 if __name__ == "__main__":
-    with setup_logging() as log:
-        with redirect_stdout(log):
-            main()
+    main_controller()
