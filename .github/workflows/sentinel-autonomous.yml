@@ -1,59 +1,99 @@
-name: 🚀 Sentinel Quantum Autonomous Cycle
+name: 🚀 Sentinel Quantum Autonomous Recovery Cycle (v11.3)
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */2 * * *"  # هەموو دوو کاتژمێر جارێک بەخۆی دەستپێدەکاتەوە
+    # بەخۆکار هەر ٦ کاتژمێر جارێک cycle نوێ دەستپێدەکات
+    - cron: "0 */6 * * *"
 
 jobs:
   run-quantum-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    env:
+      PYTHONUNBUFFERED: 1
+      MAX_RETRIES: 3
+      COOLDOWN_SECONDS: 300  # 5 خولەک بۆ بەستەنی دووبارەی cycle
 
     steps:
-      # 1️⃣ Checkout repository
+      - name: 🧩 Set up job
+        run: echo "Initializing Sentinel Quantum Autonomous Recovery Cycle..."
+
       - name: 📦 Checkout Repository
         uses: actions/checkout@v4
 
-      # 2️⃣ Setup Python
       - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      # 3️⃣ Install Dependencies
       - name: 📚 Install Dependencies
         run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          pip install requests aiohttp beautifulsoup4 lxml python-nmap shodan dnspython httpx trio numpy pandas scikit-learn torch transformers sentencepiece tldextract
 
-      # 4️⃣ Run Main AI Controller
-      - name: 🚀 Launch Main Controller
+      - name: 🚀 Launch Main Controller with Recovery Loop
+        id: main
         run: |
           cd src
-          python main_controller_v11_1.py
+          echo "==============================================="
+          echo "🚀 LAUNCHING Sentinel Quantum Main Controller v11.3"
+          echo "==============================================="
+          RETRIES=0
+          until [ $RETRIES -ge $MAX_RETRIES ]
+          do
+              echo "▶️ Attempt $((RETRIES+1)) of $MAX_RETRIES..."
+              python main_controller_v11_2_debug.py && break
+              
+              EXIT_CODE=$?
+              echo "❌ Cycle failed with exit code: $EXIT_CODE"
+              ((RETRIES++))
+              if [ $RETRIES -lt $MAX_RETRIES ]; then
+                  echo "🕐 Cooling down for $COOLDOWN_SECONDS seconds before retry..."
+                  sleep $COOLDOWN_SECONDS
+              fi
+          done
+          if [ $RETRIES -eq $MAX_RETRIES ]; then
+              echo "❌ All retries failed. Writing recovery log..."
+              mkdir -p ../data/logs
+              echo "$(date): All $MAX_RETRIES attempts failed. System entering cooldown mode." >> ../data/logs/recovery.log
+              exit 1
+          fi
 
-      # 5️⃣ Run AI Chain Orchestrator
-      - name: 🧠 Launch AI Chain Orchestrator
+      - name: 🧠 Launch AI Chain Orchestrator (Optional)
+        if: success()
         run: |
           cd src
+          echo ">>> Running AI Chain Orchestrator as secondary chain"
           python ai_chain_orchestrator.py
+        continue-on-error: true
 
-      # 6️⃣ Run Quantum Awareness Engine
-      - name: 🌌 Launch Quantum Awareness Engine
+      - name: 🌌 Launch Quantum Awareness Engine (Optional)
+        if: success()
         run: |
           cd src
+          echo ">>> Running Quantum Awareness Engine for adaptive awareness"
           python quantum_awareness_engine.py
+        continue-on-error: true
 
-      # 7️⃣ Upload Logs
       - name: 📤 Upload Logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sentinel-logs
           path: data/logs/
 
-      # 8️⃣ Upload Reports
       - name: 📤 Upload Reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sentinel-reports
           path: data/reports/
+
+      - name: ✅ Finalize Job
+        if: always()
+        run: |
+          echo "==============================================="
+          echo "✅ Sentinel Quantum v11.3 Autonomous Cycle finished."
+          echo "==============================================="
