@@ -1,76 +1,74 @@
-import time
 import json
-import traceback
-from pathlib import Path
-
-from engines.passive_intel_engine import PassiveIntelEngine
+import os
+import time
 from engines.active_intel_engine import ActiveIntelEngine
-from recon.active_recon_engine import ActiveReconEngine
-from recon.passive_recon import PassiveRecon
-from ai.ai_engine import AIEngine
-from report_builder_engine import ReportBuilderEngine
+from engines.passive_intel_engine import PassiveIntelEngine
 
-CONFIG_PATH = "../config/sentinel_config.json"
-TARGETS_FILE = "../data/targets/global_500_targets.txt"
-LOG_DIR = "../data/logs/"
-REPORT_DIR = "../data/reports/"
 
-class SentinelMainController:
-    def __init__(self):
-        self.load_config()
-        self.create_dirs()
+CONFIG_PATH = "config/sentinel_config.json"
 
-        self.passive_intel = PassiveIntelEngine()
-        self.active_intel = ActiveIntelEngine()
-        self.passive_recon = PassiveRecon()
-        self.active_recon = ActiveReconEngine()
-        self.ai_engine = AIEngine()
-        self.reporter = ReportBuilderEngine()
 
-    def load_config(self):
-        with open(CONFIG_PATH, "r") as f:
-            self.config = json.load(f)
+def load_config():
+    with open(CONFIG_PATH, "r") as f:
+        return json.load(f)
 
-    def create_dirs(self):
-        Path(LOG_DIR).mkdir(parents=True, exist_ok=True)
-        Path(REPORT_DIR).mkdir(parents=True, exist_ok=True)
 
-    def load_targets(self):
-        with open(TARGETS_FILE, "r") as f:
-            return [x.strip() for x in f.readlines() if x.strip()]
+def load_targets():
+    path = "data/targets/global_500_targets.txt"
+    with open(path, "r") as f:
+        return [x.strip() for x in f.readlines() if x.strip()]
 
-    def run_cycle(self):
-        targets = self.load_targets()
 
-        print(f"[+] Loaded {len(targets)} targets.")
-        cycle = 0
+def save_result(target, data):
+    os.makedirs("data/results", exist_ok=True)
+    outfile = f"data/results/{target.replace('.', '_')}.json"
+    with open(outfile, "w") as f:
+        json.dump(data, f, indent=4)
 
-        while True:
-            cycle += 1
-            print(f"\n========== CYCLE {cycle} STARTED ==========")
 
-            for target in targets:
-                try:
-                    print(f"\n[+] Processing target: {target}")
+def main():
+    print("\n🚀 DIGITAL SENTINEL V6 — Autonomous Cycle Started\n")
 
-                    data1 = self.passive_intel.collect(target)
-                    data2 = self.active_intel.collect(target)
-                    data3 = self.passive_recon.scan(target)
-                    data4 = self.active_recon.scan(target)
+    config = load_config()
+    targets = load_targets()
 
-                    merged = self.ai_engine.analyze(target, data1, data2, data3, data4)
+    active_engine = ActiveIntelEngine()
+    passive_engine = PassiveIntelEngine()
 
-                    self.reporter.save(target, merged)
+    for target in targets:
+        print(f"\n🔍 Scanning: {target}")
+        result = {"target": target, "active": {}, "passive": {}}
 
-                except Exception as e:
-                    error_msg = traceback.format_exc()
-                    print(f"[ERROR] Failed on {target}: {error_msg}")
+        # ------------------------------------------
+        # RUN PASSIVE ENGINE
+        # ------------------------------------------
+        try:
+            result["passive"] = passive_engine.run(target)
+            print("    ✔ Passive Engine OK")
+        except Exception as e:
+            result["passive"] = {"error": str(e)}
+            print("    ❌ Passive Engine Failed")
 
-            print(f"========== CYCLE {cycle} COMPLETED ==========\n")
-            print("[+] Sleeping 10 minutes before next cycle...")
-            time.sleep(600)
+        # ------------------------------------------
+        # RUN ACTIVE ENGINE
+        # ------------------------------------------
+        try:
+            result["active"] = active_engine.run(target)
+            print("    ✔ Active Engine OK")
+        except Exception as e:
+            result["active"] = {"error": str(e)}
+            print("    ❌ Active Engine Failed")
+
+        # ------------------------------------------
+        # SAVE OUTPUT
+        # ------------------------------------------
+        save_result(target, result)
+        print(f"    💾 Saved results → data/results/{target.replace('.', '_')}.json")
+
+        time.sleep(1)
+
+    print("\n🎉 ALL TASKS COMPLETED — Sentinel Autonomous Cycle Finished!\n")
 
 
 if __name__ == "__main__":
-    s = SentinelMainController()
-    s.run_cycle()
+    main()
