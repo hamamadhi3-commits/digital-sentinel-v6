@@ -6,9 +6,8 @@ on:
 jobs:
   run-scan:
     runs-on: ubuntu-latest
-
     steps:
-      - name: 🔄 Checkout Repository
+      - name: 🧾 Checkout Repository
         uses: actions/checkout@v4
 
       - name: 🐍 Setup Python
@@ -18,28 +17,18 @@ jobs:
 
       - name: 📦 Install Dependencies
         run: |
-          python3 -m pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install httpx beautifulsoup4 tldextract
 
-      - name: ▶️ Launch Main Controller
+      - name: 🚀 Launch Main Controller
         run: |
           cd src
-          python3 main_controller_v11_1.py
+          python main_controller_v11_1.py
 
-      - name: 📤 Upload Logs
+      - name: 📤 Upload Logs (if any)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sentinel-logs
           path: data/logs/
-
-      - name: 📤 Upload Reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: sentinel-reports
-          path: data/reports/
-
-      - name: 📤 Upload Results
-        uses: actions/upload-artifact@v4
-        with:
-          name: sentinel-results
-          path: data/results/
