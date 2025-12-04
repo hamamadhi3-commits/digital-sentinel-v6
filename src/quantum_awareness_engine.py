@@ -1,67 +1,129 @@
-# src/quantum_awareness_engine.py
-# Digital Sentinel v6 — STEP 10: Quantum Awareness Mode
-# Multi-Agent Parallel Intelligence System
+# ---------------------------------------------------------
+# Digital Sentinel Quantum Awareness Engine
+# Multi-Agent Autonomous Coordination Layer
+# ---------------------------------------------------------
 
-import concurrent.futures
-import time
-from datetime import datetime
 import os
-from engines.enumeration_engine import EnumerationEngine
-from engines.active_intel_engine import ActiveIntelEngine
-from engines.passive_intel_engine import PassiveIntelEngine
-from engines.threat_intel_engine import ThreatIntelEngine
-from engines.self_evolution_engine import SelfEvolutionEngine
+import time
+import random
+import threading
+import traceback
+
+# Fix import path (so Python finds local engines/)
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), "engines"))
+
+# Now import local modules
+from enumeration_engine import EnumerationEngine
+from passive_intel_engine import PassiveIntelEngine
+from active_intel_engine import ActiveIntelEngine
+
+
+# =========================================================
+#  Quantum Awareness Engine
+# =========================================================
 
 class QuantumAwarenessEngine:
     def __init__(self, max_agents=10):
+        """
+        Initializes the quantum engine that runs parallel agents
+        for enumeration, passive intel, and active recon simultaneously.
+        """
         self.max_agents = max_agents
-        self.log_file = os.path.join("data/logs", f"quantum_awareness_{int(time.time())}.log")
-        os.makedirs("data/logs", exist_ok=True)
+        self.agents = []
+        self.results = []
+        self.running = False
 
-    def log(self, msg):
-        line = f"[{datetime.utcnow()}] {msg}"
-        print(line)
-        with open(self.log_file, "a", encoding="utf-8") as f:
-            f.write(line + "\n")
+    def log(self, message):
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+        print(f"[🌌 QuantumEngine {timestamp}] {message}")
 
-    def agent_recon(self):
-        self.log("👁 RECON agent starting...")
-        enum = EnumerationEngine()
-        targets = enum.run_enumeration()
-        return targets
+    def _agent_task(self, agent_id, target):
+        """
+        Executes a single agent task cycle.
+        """
+        try:
+            self.log(f"🧠 Agent {agent_id} started on target {target}")
 
-    def agent_passive(self, targets):
-        self.log("🌐 PASSIVE agent scanning...")
-        passive = PassiveIntelEngine()
-        return passive.run_passive_scan(targets)
+            # === Step 1: Enumeration Phase ===
+            enum_engine = EnumerationEngine()
+            subdomains = enum_engine.enumerate(target)
+            self.log(f"🔹 Agent {agent_id}: Found {len(subdomains)} subdomains.")
 
-    def agent_active(self, targets):
-        self.log("⚙️ ACTIVE agent scanning...")
-        active = ActiveIntelEngine()
-        return active.run_active_scan(targets)
+            # === Step 2: Passive Intelligence Phase ===
+            passive_engine = PassiveIntelEngine()
+            passive_data = passive_engine.run(target)
+            self.log(f"🔸 Agent {agent_id}: Passive intel collected.")
 
-    def agent_threat_fusion(self):
-        self.log("🛰 THREAT FUSION agent fetching intel...")
-        fusion = ThreatIntelEngine()
-        return fusion.fuse_intelligence()
+            # === Step 3: Active Recon Phase ===
+            active_engine = ActiveIntelEngine()
+            recon_data = active_engine.run(target)
+            self.log(f"🚀 Agent {agent_id}: Active recon done.")
 
-    def agent_evolve(self):
-        self.log("🧬 EVOLUTION agent updating behavior...")
-        evolve = SelfEvolutionEngine()
-        return evolve.evolve()
+            self.results.append({
+                "agent_id": agent_id,
+                "target": target,
+                "subdomains": subdomains,
+                "passive": passive_data,
+                "active": recon_data
+            })
+
+        except Exception as e:
+            self.log(f"⚠️ Agent {agent_id} failed: {e}")
+            traceback.print_exc()
+
+    # =========================================================
+    #  Quantum Coordination Core
+    # =========================================================
 
     def run_quantum_cycle(self):
-        self.log("⚡ Quantum Awareness Cycle Initiated")
+        """
+        Starts a multi-threaded awareness cycle with autonomous AI agents.
+        """
+        self.running = True
+        self.log(f"⚙️ Launching {self.max_agents} Quantum Agents...")
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_agents) as executor:
-            tasks = [
-                executor.submit(self.agent_recon),
-                executor.submit(self.agent_threat_fusion),
-                executor.submit(self.agent_evolve)
-            ]
-            results = [f.result() for f in concurrent.futures.as_completed(tasks)]
+        # Example target rotation for awareness
+        default_targets = [
+            "example.com",
+            "tesla.com",
+            "apple.com",
+            "google.com",
+            "microsoft.com"
+        ]
 
-        self.log(f"✅ Quantum cycle complete ({len(results)} parallel agents executed)")
-        self.log("⏳ Sleeping 2 hours before next hypercycle...")
-        time.sleep(7200)
-        self.run_quantum_cycle()
+        for i in range(self.max_agents):
+            target = random.choice(default_targets)
+            t = threading.Thread(target=self._agent_task, args=(i + 1, target))
+            self.agents.append(t)
+            t.start()
+            time.sleep(0.5)  # Slight staggering to avoid overload
+
+        # Wait for all agents
+        for t in self.agents:
+            t.join()
+
+        self.log("✅ All Quantum Agents completed their cycles.")
+        self._summarize_results()
+
+    # =========================================================
+    #  Result Summary
+    # =========================================================
+
+    def _summarize_results(self):
+        """
+        Prints and saves a summary of results from all agents.
+        """
+        summary_path = "data/reports/quantum_summary.txt"
+        os.makedirs(os.path.dirname(summary_path), exist_ok=True)
+
+        self.log("📊 Compiling Quantum Summary Report...")
+        with open(summary_path, "w", encoding="utf-8") as f:
+            for result in self.results:
+                f.write(f"Agent {result['agent_id']} → {result['target']}\n")
+                f.write(f"  Subdomains found: {len(result['subdomains'])}\n")
+                f.write(f"  Passive intel keys: {list(result['passive'].keys()) if isinstance(result['passive'], dict) else 'N/A'}\n")
+                f.write(f"  Active ports: {result['active'].get('ports', []) if isinstance(result['active'], dict) else 'N/A'}\n")
+                f.write("-" * 60 + "\n")
+
+        self.log(f"📄 Quantum summary saved to {summary_path}")
