@@ -1,86 +1,61 @@
-import asyncio
-import socket
-import shodan
-import httpx
-import subprocess
-from bs4 import BeautifulSoup
+# src/engines/passive_intel_engine.py
+# Passive intelligence engine: performs WHOIS, DNS, and TLD extraction
+
+import requests
 import tldextract
 import os
+import socket
 
-SHODAN_KEY = os.getenv("SHODAN_API_KEY", "")
 
-
-class ActiveIntelEngine:
-    """
-    Active Intelligence Engine
-    - Fast Port Scan
-    - HTTP Title Fetcher
-    - Shodan Info
-    - Basic Fingerprinting
-    """
-
+class PassiveIntelEngine:
     def __init__(self):
-        self.engine_name = "Active-Intel"
+        self.engine_name = "PassiveIntelEngine"
 
-    # -----------------------------------------------------------
-    # 1) FAST PORT SCAN (very lightweight)
-    # -----------------------------------------------------------
-    def fast_portscan(self, domain):
-        open_ports = []
-        ports = [80, 443, 8080, 8443, 22, 21, 25, 53]
-
-        for port in ports:
-            try:
-                sock = socket.socket()
-                sock.settimeout(0.7)
-                result = sock.connect_ex((domain, port))
-                if result == 0:
-                    open_ports.append(port)
-                sock.close()
-            except:
-                pass
-
-        return open_ports
-
-    # -----------------------------------------------------------
-    # 2) SHODAN LOOKUP
-    # -----------------------------------------------------------
-    def shodan_lookup(self, domain):
-        if not SHODAN_KEY:
-            return {"error": "Missing SHODAN_API_KEY"}
-
+    def whois_lookup(self, domain):
+        """Perform WHOIS lookup using a public API (fallback if offline)."""
         try:
-            api = shodan.Shodan(SHODAN_KEY)
-            result = api.search(domain)
-            return result
+            api = f"https://api.api-ninjas.com/v1/whois?domain={domain}"
+            headers = {"X-Api-Key": os.getenv("API_NINJAS_KEY", "")}
+            r = requests.get(api, headers=headers, timeout=6)
+            if r.status_code == 200:
+                data = r.json()
+                registrar = data.get("registrar", "Unknown")
+                creation_date = data.get("creation_date", "N/A")
+                return f"Registrar: {registrar}, Created: {creation_date}"
+            else:
+                return f"WHOIS request failed (HTTP {r.status_code})"
         except Exception as e:
-            return {"error": str(e)}
+            return f"WHOIS error: {e}"
 
-    # -----------------------------------------------------------
-    # 3) HTTP TITLE FETCHER
-    # -----------------------------------------------------------
-    async def fetch_title(self, url):
+    def resolve_dns(self, domain):
+        """Resolve A record of domain."""
         try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                r = await client.get(url)
-                soup = BeautifulSoup(r.text, 'lxml')
-                title = soup.title.string if soup.title else "No Title"
-                return {"url": url, "title": title}
-        except:
-            return {"url": url, "title": None}
+            ip = socket.gethostbyname(domain)
+            return f"{domain} → {ip}"
+        except Exception as e:
+            return f"DNS resolution failed: {e}"
 
-    # -----------------------------------------------------------
-    # MAIN RUN METHOD
-    # -----------------------------------------------------------
+    def extract_tld(self, target):
+        """Extract top-level domain info."""
+        try:
+            ext = tldextract.extract(target)
+            return f"Domain: {ext.domain}.{ext.suffix}, Subdomain: {ext.subdomain or 'None'}"
+        except Exception as e:
+            return f"TLD parse error: {e}"
+
     def run(self, target):
-        extracted = tldextract.extract(target)
-        domain = extracted.registered_domain
+        """Run all passive intel methods."""
+        print(f"\n[🕵️‍♂️] Running {self.engine_name} on target: {target}")
+        try:
+            tld_info = self.extract_tld(target)
+            print(f"  🌍 {tld_info}")
 
-        results = {
-            "engine": self.engine_name,
-            "domain": domain,
-            "open_ports": self.fast_portscan(domain),
-            "shodan": self.shodan_lookup(domain),
-        }
+            dns_info = self.resolve_dns(target)
+            print(f"  🧭 {dns_info}")
 
-        return results
+            whois_info = self.whois_lookup(target)
+            print(f"  📜 {whois_info}")
+
+            print("✅ PassiveIntelEngine completed.\n")
+        except Exception as e:
+            print(f"❌ PassiveIntelEngine error: {e}")
